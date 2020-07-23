@@ -1,9 +1,18 @@
 #pragma once
-#include "stdlib.h"
+#include <string>
 
 
 bool gcloud_auth(const char* email = NULL);
 
 
-std::string& get_token();
+std::wstring& get_token();
 void clear_token();
+
+std::wstring& get_requester_pay();
+void set_requester_pay(std::wstring);
+
+
+
+
+
+

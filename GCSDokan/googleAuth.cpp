@@ -1,12 +1,13 @@
 #include "utilities.h"
 #include <string>
+using std::wstring;
 using std::string;
 
 bool is_gcloud = false;
 bool is_json = false;
-string token;
-string json_path;
-
+wstring token;
+wstring json_path;
+wstring biling_project;
 
 bool gcloud_auth(const char* email = NULL) {
 	string command = "gcloud auth print-access-token";
@@ -15,7 +16,8 @@ bool gcloud_auth(const char* email = NULL) {
 		command.append(email);
 	}
 	try {
-		token = execute_command(command.c_str());
+		string token_char = execute_command(command.c_str());
+		token = L"Bearer " + wstring(token_char.begin(), token_char.end());
 	}
 	catch (const std::exception& e) {
 		return false;
@@ -25,11 +27,20 @@ bool gcloud_auth(const char* email = NULL) {
 	return true;
 }
 
-string& get_token() {
+wstring& get_token() {
 	return token;
 }
 
 
 void clear_token() {
 	token.clear();
+}
+
+
+std::wstring& get_requester_pay() {
+	return biling_project;
+}
+
+void set_requester_pay(std::wstring project) {
+	biling_project = project;
 }
