@@ -37,4 +37,3 @@ std::vector<std::wstring> get_json_array(web::json::value json_value,
     std::initializer_list <const utility::char_t*> indices,
     const utility::char_t * indices2 = nullptr);
 
-std::wstring build_path(std::wstring path1, std::wstring path2, WCHAR delimiter = L'\\');

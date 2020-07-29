@@ -5,9 +5,11 @@
 #include <stdexcept>
 #include <string>
 #include <array>
+#include <vector>
 
 using std::string;
 using std::wstring;
+using std::vector;
 
 short verbose_level = 1;
 
@@ -66,6 +68,30 @@ wstring to_win_slash(wstring path) {
     }
     return path;
 }
+
+//Work on both win and linux slash
+wstring to_parent_folder(wstring path) {
+    wstring parent_path = path.substr(0, path.find_last_of(L"\\/"));
+    return parent_path;
+}
+
+std::wstring get_file_name_in_path(std::wstring path) {
+    return path.substr(path.find_last_of(L"\\/") + 1);
+}
+
+std::wstring build_path(std::wstring path1, std::wstring path2, WCHAR delimiter) {
+    if (path1.length()==0||
+        path2.length()==0||
+        path1.at(path1.length() - 1) == delimiter||
+        path2.at(0) == delimiter){
+        return path1 + path2;
+    }
+    else {
+        return path1 + delimiter + path2;
+    }
+}
+
+
 
 void debug_print(LPCWSTR format, ...) {
     if (verbose_level>0) {

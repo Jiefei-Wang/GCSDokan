@@ -68,12 +68,11 @@ wstring tailing_string(wstring source, size_t offset) {
     }
 }
 
-decomposed_path get_path_info(std::wstring win_path) {
-    string_t linux_path = root_path + to_linux_slash(win_path);
+decomposed_path get_path_info(std::wstring linux_path) {
     vector<string_t> full_path_vec = web::uri::split_path(linux_path);
     string_t bucket = full_path_vec.at(0);
     string_t path = tailing_string(linux_path, bucket.length() + 1);
-    wstring parent_path = win_path.substr(0, win_path.length() - full_path_vec.at(full_path_vec.size()-1).length()-1);
+    wstring parent_path = to_parent_folder(linux_path);
     if (parent_path == L"") {
         parent_path = L"/";
     }
@@ -108,12 +107,4 @@ std::vector<wstring> get_json_array(web::json::value json_value,
     return std::vector<wstring>();
 }
 
-std::wstring build_path(std::wstring path1, std::wstring path2, WCHAR delimiter) {
-    if (path1.at(path1.length() - 1) == delimiter) {
-        return path1 + path2;
-    }
-    else {
-        return path1 + delimiter + path2;
-    }
-}
 

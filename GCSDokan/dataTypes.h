@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <map>
 #include <string>
 #include <chrono>
 #include "dokan.h"
@@ -18,20 +19,23 @@ typedef struct {
 
 
 typedef struct {
-    std::wstring win_full_path;
-    std::wstring cloud_full_path;
-    std::wstring win_name;
-    std::wstring cloud_name;
+    std::wstring local_full_path;
+    std::wstring remote_full_path;
+    std::wstring local_name;
+    std::wstring remote_name;
     size_t size = 0;
     std::wstring crc32c;
     FILETIME time_created;
     FILETIME time_updated;
+    FILETIME time_accessed;
 } file_meta_info;
 
 
 typedef struct {
+    std::wstring local_name;
+    std::wstring local_full_path;
     std::vector<std::wstring> folder_names;
-    std::vector<file_meta_info> file_meta_vector;
+    std::map<std::wstring,file_meta_info> file_meta_vector;
 } folder_meta_info;
 
 
@@ -39,7 +43,5 @@ typedef struct {
 typedef struct {
     std::chrono::system_clock::time_point query_time;
     bool exist = false;
-    bool is_file = false;
     folder_meta_info folder_meta;
-    file_meta_info file_meta;
 } REST_result_holder;

@@ -76,36 +76,38 @@ file_meta_info compose_file_meta(
 	wstring size,
 	wstring crc32c,
 	wstring created,
-	wstring updated
+	wstring updated,
+	wstring accessed
 ) {
 	file_meta_info info;
-	info.win_full_path = path;
-	info.cloud_full_path = path;
-	info.win_name = name;
-	info.cloud_name = name;
+	info.local_full_path = path;
+	info.remote_full_path = path;
+	info.local_name = name;
+	info.remote_name = name;
 	info.size = std::stoll(size);
 	info.crc32c = crc32c;
 	info.time_created = json_time_to_file_time(created);
 	info.time_updated = json_time_to_file_time(updated);
+	info.time_accessed = json_time_to_file_time(accessed);
 	return info;
 }
 
-void solve_file_name_conflict(wstring win_parent_path, file_meta_info& file_info, vector<wstring> folder_names) {
+void solve_file_name_conflict(wstring linux_parent_path, file_meta_info& file_info, vector<wstring> folder_names) {
 	bool has_conflict = false;
-	while (std::find(folder_names.begin(), folder_names.end(), file_info.win_name) != folder_names.end()) {
-		file_info.win_name = file_info.win_name + L"_";
+	while (std::find(folder_names.begin(), folder_names.end(), file_info.local_name) != folder_names.end()) {
+		file_info.local_name = file_info.local_name + L"_";
 		has_conflict = true;
 	}
 	if (has_conflict) {
-		wstring file_path = build_path(win_parent_path, file_info.win_name);
-		file_info.win_full_path = file_path;
+		wstring file_path = build_path(linux_parent_path, file_info.local_name);
+		file_info.local_full_path = file_path;
 	}
 }
 
 
-folder_meta_info gcs_get_folder_meta_internal(std::wstring win_path, wstring next_page_token = L"") {
+folder_meta_info gcs_get_folder_meta_internal(std::wstring linux_path, wstring next_page_token = L"") {
 	folder_meta_info dir_info;
-	decomposed_path path_info = get_path_info(win_path);
+	decomposed_path path_info = get_path_info(linux_path);
 	uri_builder builder = get_builder({ L"b", path_info.bucket.c_str() ,L"o" });
 	builder.append_query(L"delimiter", delimiter);
 	builder.append_query(L"pageToken", next_page_token);
@@ -159,20 +161,21 @@ folder_meta_info gcs_get_folder_meta_internal(std::wstring win_path, wstring nex
 
 		// fill the result to the folder_meta_info object
 		for (int i = 0; i < file_names.size(); i++) {
-			wstring file_path = build_path(win_path, file_names[i]);
+			wstring file_path = build_path(linux_path, file_names[i]);
 			file_meta_info file_meta = compose_file_meta(
-				file_path, file_names[i], file_sizes[i], file_crc32c[i], file_created[i], file_updated[i]
+				file_path, file_names[i], file_sizes[i], file_crc32c[i], 
+				file_created[i], file_updated[i], file_updated[i]
 			);
 			//Add postfix if the file name has a conflict with the folder names
-			solve_file_name_conflict(win_path, file_meta, folder_names);
-			dir_info.file_meta_vector.push_back(file_meta);
+			solve_file_name_conflict(linux_path, file_meta, folder_names);
+			dir_info.file_meta_vector.insert(std::pair<wstring,file_meta_info>(file_meta.local_name, file_meta));
 		}
 		dir_info.folder_names = folder_names;
 
 		// If the result is not complete, send another request and get the result back
 		if (next_page_token.length() != 0) {
-			auto next_dir_info = gcs_get_folder_meta_internal(win_path, next_page_token);
-			dir_info.file_meta_vector.insert(dir_info.file_meta_vector.end(),
+			auto next_dir_info = gcs_get_folder_meta_internal(linux_path, next_page_token);
+			dir_info.file_meta_vector.insert(
 				next_dir_info.file_meta_vector.begin(), next_dir_info.file_meta_vector.end());
 
 			dir_info.folder_names.insert(dir_info.folder_names.end(),
@@ -195,7 +198,7 @@ folder_meta_info gcs_get_folder_meta_internal(std::wstring win_path, wstring nex
 
 
 
-
+/*
 
 file_meta_info gcs_get_file_meta_internal(std::wstring win_path) {
 	file_meta_info file_meta;
@@ -246,7 +249,7 @@ file_meta_info gcs_get_file_meta_internal(std::wstring win_path) {
 	}
 	return file_meta;
 }
-
+*/
 
 
 
@@ -301,9 +304,10 @@ void gcs_read_file_internal(std::wstring win_path, void* buffer,
 folder_meta_info gcs_get_folder_meta(std::wstring win_path) {
 	retry_when_error(gcs_get_folder_meta_internal(win_path));
 }
+/*
 file_meta_info gcs_get_file_meta(std::wstring win_path) {
 	retry_when_error(gcs_get_file_meta_internal(win_path));
-}
+}*/
 void gcs_read_file(std::wstring win_path, void* buffer,
 	size_t& buffer_length,
 	size_t offset) {

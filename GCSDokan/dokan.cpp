@@ -337,13 +337,13 @@ cloud_find_files(LPCWSTR file_name,
 
 	for (auto i : dir_info.file_meta_vector) {
 		findData.cAlternateFileName[0] = L'\0';
-		unsigned long long size = i.size;
+		unsigned long long size = i.second.size;
 		LlongToDwLowHigh(size, findData.nFileSizeLow, findData.nFileSizeHigh);
 		findData.dwFileAttributes = FILE_ATTRIBUTE_READONLY;
-		findData.ftCreationTime = i.time_created;
-		findData.ftLastWriteTime = i.time_updated;
-		findData.ftLastAccessTime = i.time_updated;
-		wcscpy_s(findData.cFileName, DOKAN_MAX_PATH, i.win_name.c_str());
+		findData.ftCreationTime = i.second.time_created;
+		findData.ftLastWriteTime = i.second.time_updated;
+		findData.ftLastAccessTime = i.second.time_updated;
+		wcscpy_s(findData.cFileName, DOKAN_MAX_PATH, i.second.local_name.c_str());
 		fill_find_data(&findData, dokan_file_info);
 	}
 

@@ -11,7 +11,9 @@ bool is_command_exist(const char* command);
 
 std::wstring to_linux_slash(std::wstring path);
 std::wstring  to_win_slash(std::wstring path);
-
+std::wstring to_parent_folder(std::wstring path);
+std::wstring get_file_name_in_path(std::wstring path);
+std::wstring build_path(std::wstring path1, std::wstring path2, WCHAR delimiter = L'/');
 
 void debug_print(LPCWSTR format, ...);
 void error_print(LPCWSTR format, ...);
@@ -28,3 +30,4 @@ static inline void LlongToDwLowHigh(const LONGLONG& value, DWORD& low,
     hight = value >> 32;
     low = static_cast<DWORD>(value);
 }
+
