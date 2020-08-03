@@ -80,6 +80,10 @@ std::wstring get_file_name_in_path(std::wstring path) {
 }
 
 std::wstring build_path(std::wstring path1, std::wstring path2, WCHAR delimiter) {
+    if (path1.at(path1.length() - 1) == delimiter &&
+        path2.at(0) == delimiter) {
+        path2 = path2.erase(0);
+    }
     if (path1.length()==0||
         path2.length()==0||
         path1.at(path1.length() - 1) == delimiter||
@@ -129,6 +133,15 @@ bool endsWith(std::wstring str, std::wstring suffix)
 
 #include <codecvt>
 #include <locale> 
+std::wstring stringToWstring(std::string utf8Bytes)
+{
+    return stringToWstring(utf8Bytes.c_str());
+}
+std::string wstringToString(std::wstring utf16Bytes)
+{
+    return wstringToString(utf16Bytes.c_str());
+}
+
 std::wstring stringToWstring(const char* utf8Bytes)
 {
     //setup converter

@@ -10,15 +10,16 @@ bucket: the name of the bucket
 path: the relative path inside the bucket
 full_path_vec: the hierarchical path components(including bucket name)
 */
-typedef struct {
+struct decomposed_path {
     std::wstring bucket;
+    std::wstring name;
     std::wstring path;
     std::wstring parent_path;
     std::vector<std::wstring> full_path_vec;
-} decomposed_path;
+};
 
 
-typedef struct {
+struct file_meta_info {
     std::wstring local_full_path;
     std::wstring remote_full_path;
     std::wstring local_name;
@@ -28,20 +29,33 @@ typedef struct {
     FILETIME time_created;
     FILETIME time_updated;
     FILETIME time_accessed;
-} file_meta_info;
+};
 
 
-typedef struct {
+struct folder_meta_info {
     std::wstring local_name;
     std::wstring local_full_path;
     std::vector<std::wstring> folder_names;
+    //Key is file local name, not file path
     std::map<std::wstring,file_meta_info> file_meta_vector;
-} folder_meta_info;
+};
 
 
 #include <ctime>   
-typedef struct {
+struct REST_result_holder{
     std::chrono::system_clock::time_point query_time;
     bool exist = false;
     folder_meta_info folder_meta;
-} REST_result_holder;
+};
+
+
+
+struct file_private_info {
+    size_t event_id = 0;
+    size_t last_read_offset = 0;
+    size_t last_read_length = 0;
+    size_t random_read_time = 0;
+    void* cache_info = nullptr;
+};
+
+

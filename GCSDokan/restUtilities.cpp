@@ -71,12 +71,16 @@ wstring tailing_string(wstring source, size_t offset) {
 decomposed_path get_path_info(std::wstring linux_path) {
     vector<string_t> full_path_vec = web::uri::split_path(linux_path);
     string_t bucket = full_path_vec.at(0);
+    string_t name = L"";
+    if (full_path_vec.size() > 1) {
+        name = full_path_vec.at(full_path_vec.size() - 1);
+    }
     string_t path = tailing_string(linux_path, bucket.length() + 1);
     wstring parent_path = to_parent_folder(linux_path);
     if (parent_path == L"") {
         parent_path = L"/";
     }
-    return decomposed_path{bucket, path,parent_path, full_path_vec};
+    return decomposed_path{bucket, name, path, parent_path, full_path_vec};
 }
 
 

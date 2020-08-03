@@ -33,6 +33,9 @@ static int event_count = 0;
 
 #define WCSMATCH(x, y) ((wcslen(x) == wcslen(y)) && wcscmp(x,y)==0)
 
+//The minimum distance between the first file read and second one in bytes
+//which will be considered as an random access
+#define continuous_tolerance 128
 
 void print_flag(ULONG share_access, ACCESS_MASK desired_access,
 	DWORD attr_and_flags, DWORD creation_disposition) {
@@ -132,11 +135,14 @@ cloud_create_file(LPCWSTR file_name, PDOKAN_IO_SECURITY_CONTEXT security_context
 	DWORD attr_and_flags;
 	ACCESS_MASK generic_desired_access;
 
-	dokan_file_info->Context = event_count++;
+
+	file_private_info* cache_info = new file_private_info();
+	cache_info->event_id = event_count++;
+	dokan_file_info->Context= (ULONG64)cache_info;
 	DokanMapKernelToUserCreateFileFlags(
 		desired_access, file_attributes, create_options, create_disposition,
 		&generic_desired_access, &attr_and_flags, &creation_disposition);
-	debug_print(L"### CreateFile : %d\n", dokan_file_info->Context);
+	debug_print(L"### CreateFile : %d\n", ((file_private_info*)dokan_file_info->Context)->event_id);
 	debug_print(L"file name : %s\n", file_name);
 	if(endsWith(file_name, L"System Volume Information")||
 		endsWith(file_name, L"$RECYCLE.BIN")||
@@ -219,14 +225,14 @@ cloud_create_file(LPCWSTR file_name, PDOKAN_IO_SECURITY_CONTEXT security_context
 
 void DOKAN_CALLBACK cloud_close_file(LPCWSTR file_name,
 	PDOKAN_FILE_INFO dokan_file_info) {
-	debug_print(L"### CloseFile : %d\n", dokan_file_info->Context);
+	debug_print(L"### CloseFile : %llu\n", ((file_private_info*)dokan_file_info->Context)->event_id);
 	debug_print(L"file name: %s\n", file_name);
 }
 
 
 void DOKAN_CALLBACK cloud_cleanup(LPCWSTR file_name,
 	PDOKAN_FILE_INFO dokan_file_info) {
-	debug_print(L"### Cleanup : %d\n", dokan_file_info->Context);
+	debug_print(L"### Cleanup : %llu\n", ((file_private_info*)dokan_file_info->Context)->event_id);
 	debug_print(L"file name: %s\n", file_name);
 }
 
@@ -237,7 +243,8 @@ NTSTATUS DOKAN_CALLBACK cloud_read_file(LPCWSTR file_name, LPVOID buffer,
 	LPDWORD read_len,
 	LONGLONG offset,
 	PDOKAN_FILE_INFO dokan_file_info) {
-	debug_print(L"### read file : %d\n", dokan_file_info->Context);
+	file_private_info* private_info = (file_private_info*)dokan_file_info->Context;
+	debug_print(L"### read file : %llu\n", private_info->event_id);
 	debug_print(L"file name: %s, offset: %llu, len:%llu\n", file_name ,offset, buffer_length);
 	file_meta_info meta = get_file_meta(file_name);
 	LONGLONG len = meta.size - offset;
@@ -248,12 +255,26 @@ NTSTATUS DOKAN_CALLBACK cloud_read_file(LPCWSTR file_name, LPVOID buffer,
 	if (true_read_len > buffer_length) {
 		true_read_len = buffer_length;
 	}
+	*read_len = (DWORD)true_read_len;
 	if (true_read_len == 0) {
-		*read_len = (DWORD)true_read_len;
 		return STATUS_SUCCESS;
 	}
-	NTSTATUS status = get_file_data(file_name, buffer, true_read_len, offset);
-	*read_len = (DWORD)true_read_len;
+	//Check whether it is a random access or not
+	if (private_info->last_read_offset != 0) {
+		size_t last_offset = private_info->last_read_offset;
+		size_t last_length = private_info->last_read_length;
+		size_t lower_bound = last_offset > continuous_tolerance ? last_offset - continuous_tolerance : last_length;
+		size_t upper_bound = last_offset + last_length + continuous_tolerance;
+		if (!(offset <= upper_bound && lower_bound <= offset + true_read_len)) {
+			private_info->random_read_time ++;
+		}
+		else {
+			private_info->random_read_time = 0;
+		}
+	}
+
+
+	NTSTATUS status = get_file_data(file_name, buffer, offset, true_read_len, private_info);
 	debug_print(L"final read size:%llu\n", true_read_len);
 	return status;
 }
@@ -263,7 +284,7 @@ NTSTATUS DOKAN_CALLBACK cloud_write_file(LPCWSTR file_name, LPCVOID buffer,
 	LPDWORD NumberOfBytesWritten,
 	LONGLONG Offset,
 	PDOKAN_FILE_INFO dokan_file_info) {
-	debug_print(L"### WriteFile : %d\n", dokan_file_info->Context);
+	debug_print(L"### WriteFile : %llu\n", ((file_private_info*)dokan_file_info->Context)->event_id);
 	debug_print(L"file name: %s\n", file_name);
 	return ERROR_ACCESS_DENIED;
 }
@@ -271,7 +292,7 @@ NTSTATUS DOKAN_CALLBACK cloud_write_file(LPCWSTR file_name, LPCVOID buffer,
 
 NTSTATUS DOKAN_CALLBACK
 cloud_flush_buffers(LPCWSTR file_name, PDOKAN_FILE_INFO dokan_file_info) {
-	debug_print(L"### FlushFileBuffers : %d\n", dokan_file_info->Context);
+	debug_print(L"### FlushFileBuffers : %llu\n", ((file_private_info*)dokan_file_info->Context)->event_id);
 	debug_print(L"file name: %s\n", file_name);
 	return STATUS_SUCCESS;
 }
@@ -281,7 +302,7 @@ cloud_flush_buffers(LPCWSTR file_name, PDOKAN_FILE_INFO dokan_file_info) {
 NTSTATUS DOKAN_CALLBACK cloud_get_file_information(
 	LPCWSTR file_name, LPBY_HANDLE_FILE_INFORMATION handleFileInformation,
 	PDOKAN_FILE_INFO dokan_file_info) {
-	debug_print(L"### GetFileInfo : %d\n", dokan_file_info->Context);
+	debug_print(L"### GetFileInfo : %llu\n", ((file_private_info*)dokan_file_info->Context)->event_id);
 	debug_print(L"file name: %s\n", file_name);
 	if (endsWith(file_name, L"desktop.ini")) {
 		debug_print(L"file not found\n");
@@ -318,7 +339,7 @@ NTSTATUS DOKAN_CALLBACK
 cloud_find_files(LPCWSTR file_name,
 	PFillFindData fill_find_data, // function pointer
 	PDOKAN_FILE_INFO dokan_file_info) {
-	debug_print(L"### FindFiles : %d\n", dokan_file_info->Context);
+	debug_print(L"### FindFiles : %llu\n", ((file_private_info*)dokan_file_info->Context)->event_id);
 	debug_print(L"file name: %s\n", file_name);
 	wstring base_path;
 	if (WCSMATCH(file_name, L"\\")) {

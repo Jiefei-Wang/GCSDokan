@@ -40,7 +40,6 @@ void initial_client() {
 	}
 }
 
-
 uri_builder get_builder(std::initializer_list<const wchar_t*> relative_uri) {
 	initial_client();
 	string_t uri;
@@ -71,7 +70,7 @@ http_request get_request(method mtd, uri_builder builder, bool add_token = true,
 
 
 file_meta_info compose_file_meta(
-	wstring path,
+	wstring linux_file_path,
 	wstring name,
 	wstring size,
 	wstring crc32c,
@@ -80,8 +79,8 @@ file_meta_info compose_file_meta(
 	wstring accessed
 ) {
 	file_meta_info info;
-	info.local_full_path = path;
-	info.remote_full_path = path;
+	info.local_full_path = linux_file_path;
+	info.remote_full_path = linux_file_path;
 	info.local_name = name;
 	info.remote_name = name;
 	info.size = std::stoll(size);
@@ -106,8 +105,10 @@ void solve_file_name_conflict(wstring linux_parent_path, file_meta_info& file_in
 
 
 folder_meta_info gcs_get_folder_meta_internal(std::wstring linux_path, wstring next_page_token = L"") {
-	folder_meta_info dir_info;
 	decomposed_path path_info = get_path_info(linux_path);
+	folder_meta_info dir_info;
+	dir_info.local_full_path = linux_path;
+	dir_info.local_name = path_info.name;
 	uri_builder builder = get_builder({ L"b", path_info.bucket.c_str() ,L"o" });
 	builder.append_query(L"delimiter", delimiter);
 	builder.append_query(L"pageToken", next_page_token);
@@ -125,7 +126,7 @@ folder_meta_info gcs_get_folder_meta_internal(std::wstring linux_path, wstring n
 			error_print(L"%s",json_table.at(L"error").at(L"message").as_string().c_str());
 			return;
 		}
-		print_json(json_table);
+		//print_json(json_table);
 		vector<wstring> folder_names = get_json_array(json_table, { L"prefixes" });
 		vector<wstring> file_names = get_json_array(json_table, { L"items" }, L"name");
 		vector<wstring> file_sizes = get_json_array(json_table, { L"items" }, L"size");
@@ -148,9 +149,12 @@ folder_meta_info gcs_get_folder_meta_internal(std::wstring linux_path, wstring n
 		folder_names.erase(idx, folder_names.end());
 
 		// Get purely folders and files name, not an relative path
-		size_t start_offset = 0;
+		size_t start_offset;
 		if (path_info.path.length() != 0) {
 			start_offset = path_info.path.length() + 1;
+		}
+		else {
+			start_offset = 0;
 		}
 		for (auto& i : folder_names) {
 			i = i.substr(start_offset, i.length() - 1 - start_offset);
@@ -198,80 +202,26 @@ folder_meta_info gcs_get_folder_meta_internal(std::wstring linux_path, wstring n
 
 
 
-/*
 
-file_meta_info gcs_get_file_meta_internal(std::wstring win_path) {
-	file_meta_info file_meta;
-	decomposed_path path_info = get_path_info(win_path);
-	uri_builder builder = get_builder({ L"b", path_info.bucket.c_str() ,L"o", path_info.path.c_str() });
-	builder.append_query(L"alt", L"json");
-	string_t final_uri = builder.to_string();
-	http_request request = get_request(methods::GET, builder);
-
-	auto task = json_base_client->request(request).then([=, &file_meta](http_response response)
-	{
-		//print_json(json_table);
-		try {
-			
-			auto json_table = response.extract_json().get();
-			if (response.status_code() != 200 && response.status_code() != 404) {
-				error_print(L"%s", json_table.at(L"error").at(L"message").as_string().c_str());
-				return;
-			}
-			auto json_object = json_table.as_object();
-			file_meta = compose_file_meta(
-				win_path,
-				json_object.at(L"name").as_string(),
-				json_object.at(L"size").as_string(),
-				json_object.at(L"crc32c").as_string(),
-				json_object.at(L"timeCreated").as_string(),
-				json_object.at(L"updated").as_string()
-				);
-			wstring win_parent_path = to_win_slash(path_info.parent_path);
-			folder_meta_info folder_info = gcs_get_folder_meta(win_parent_path);
-			solve_file_name_conflict(win_parent_path, file_meta, folder_info.folder_names);
-
-		}
-		catch (...) {
-
-		}
-	}
-	);
-
-	try
-	{
-		task.wait();
-		//return task.get();
-	}
-	catch (const std::exception& e)
-	{
-		handle_rest_error(e);
-	}
-	return file_meta;
-}
-*/
-
-
-
-void gcs_read_file_internal(std::wstring win_path, void* buffer,
-	size_t& buffer_length,
-	size_t offset) {
+bool gcs_read_file_internal(std::wstring win_path, void* buffer,
+	size_t offset,
+	size_t length) {
 	decomposed_path info = get_path_info(win_path);
 	uri_builder builder = get_builder({ info.bucket.c_str() ,info.path.c_str() });
 	string_t final_uri = builder.to_string();
 	http_request request = get_request(methods::GET, builder, true, false);
 	request.headers().add(L"range",
-		L"bytes=" + std::to_wstring(offset) + L"-" + std::to_wstring(offset + buffer_length - 1));
+		L"bytes=" + std::to_wstring(offset) + L"-" + std::to_wstring(offset + length - 1));
 	if (get_requester_pay().length() != 0)
 		request.headers().add(L"x-goog-user-project", get_requester_pay());
 
-	Concurrency::task<void> task = xml_base_client->request(request).then([=, &buffer_length](http_response response)
+	pplx::task<bool> task = xml_base_client->request(request).then([=](http_response response)
 	{
 		try {
-			if (response.status_code() != 200) {
+			if (response.status_code() != 200 && response.status_code() != 206) {
 				auto json_table = response.extract_json().get();
 				error_print(L"%s", json_table.at(L"error").at(L"message").as_string().c_str());
-				return;
+				return false;
 			}
 			std::vector<unsigned char> response_vec = response.extract_vector().get();
 			for (int i = 0; i < response_vec.size(); ++i) {
@@ -279,19 +229,20 @@ void gcs_read_file_internal(std::wstring win_path, void* buffer,
 			}
 		}
 		catch (...) {
-			buffer_length = 0;
+			return false;
 		}
+		return true;
 	}
 	);
 
 	try
 	{
-		task.wait();
+		return task.get();
 	}
 	catch (const std::exception& e)
 	{
-		buffer_length = 0;
 		handle_rest_error(e);
+		return false;
 	}
 }
 
@@ -304,18 +255,9 @@ void gcs_read_file_internal(std::wstring win_path, void* buffer,
 folder_meta_info gcs_get_folder_meta(std::wstring win_path) {
 	retry_when_error(gcs_get_folder_meta_internal(win_path));
 }
-/*
-file_meta_info gcs_get_file_meta(std::wstring win_path) {
-	retry_when_error(gcs_get_file_meta_internal(win_path));
-}*/
-void gcs_read_file(std::wstring win_path, void* buffer,
-	size_t& buffer_length,
-	size_t offset) {
-	int count = 0;
-	for (int count = 0; count < retry_time; ++count) {
-		gcs_read_file_internal(win_path, buffer, buffer_length, offset);
-		if (get_last_error().length() == 0) {
-			return;
-		}
-	}
+
+bool gcs_read_file(std::wstring win_path, void* buffer,
+	size_t offset,
+	size_t length) {
+	retry_when_error(gcs_read_file_internal(win_path, buffer, offset, length));
 }

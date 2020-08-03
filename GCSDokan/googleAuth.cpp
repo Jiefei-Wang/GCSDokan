@@ -19,7 +19,7 @@ bool gcloud_auth(const char* email = NULL) {
 		string token_char = execute_command(command.c_str());
 		token = L"Bearer " + wstring(token_char.begin(), token_char.end());
 	}
-	catch (const std::exception& e) {
+	catch (const std::exception) {
 		return false;
 	}
 	is_gcloud = true;

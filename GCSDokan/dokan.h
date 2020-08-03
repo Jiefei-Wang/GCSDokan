@@ -1,6 +1,7 @@
 #pragma once
 #include "dokan/dokan.h"
 
+
 #ifdef WIN10_ENABLE_LONG_PATH
 //dirty but should be enough
 #define DOKAN_MAX_PATH 32768
