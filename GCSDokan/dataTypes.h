@@ -3,7 +3,7 @@
 #include <map>
 #include <string>
 #include <chrono>
-#include "dokan.h"
+#include "dokan/dokan.h"
 /*
 This struct contains the information of a decomposed path
 bucket: the name of the bucket
@@ -50,12 +50,20 @@ struct REST_result_holder{
 
 
 
-struct file_private_info {
-    size_t event_id = 0;
-    size_t last_read_offset = 0;
-    size_t last_read_length = 0;
-    size_t random_read_time = 0;
+
+
+enum class CACHE_TYPE { none, disk, memory };
+
+struct file_manager_handle_struct {
+    CACHE_TYPE cache_type = CACHE_TYPE::none;
+    std::wstring win_path;
+    std::wstring linux_full_path;
     void* cache_info = nullptr;
 };
+typedef file_manager_handle_struct* file_manager_handle;
 
 
+struct file_private_info {
+    size_t event_id = 0;
+    file_manager_handle manager_handle = nullptr;
+};

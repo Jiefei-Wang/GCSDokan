@@ -5,7 +5,7 @@
 #include "dataTypes.h"
 #include "utilities.h"
 
-extern std::wstring root_path;
+extern std::wstring remote_link;
 
 
 std::string get_last_error();

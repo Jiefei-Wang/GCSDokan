@@ -1,4 +1,3 @@
-#include "utilities.h"
 #include <cstdio>
 #include <iostream>
 #include <memory>
@@ -6,12 +5,13 @@
 #include <string>
 #include <array>
 #include <vector>
+#include "utilities.h"
+#include "globalVariables.h"
 
 using std::string;
 using std::wstring;
 using std::vector;
 
-short verbose_level = 1;
 
 #define EXECUTE_COMMAND_FAIL_TO_OPEN_PIPE "Excuting command line program failed!"
 #define EXECUTE_COMMAND_NONZERO_EXIST "Command has non-zero exist status"
@@ -184,4 +184,14 @@ FILETIME json_time_to_file_time(wstring time)
         }
     }
     return FILETIME{0,0};
+}
+
+
+#include "cpprest/streams.h"
+std::string to_base64(void* data, size_t size) {
+    string result;
+    for (int i = 0; i < size/8; i++) {
+        result = result + wstringToString(utility::conversions::to_base64(((uint64_t*)data)[i]));
+    }
+    return result;
 }

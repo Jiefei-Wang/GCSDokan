@@ -4,6 +4,8 @@
 #include <boost/interprocess/mapped_region.hpp>
 #include "fileCache.h"
 
+
+
 namespace bf = boost::filesystem;
 namespace bi = boost::interprocess;
 using std::string;
@@ -18,9 +20,121 @@ using std::string;
 #endif
 #define min(a,b)            (((a) < (b)) ? (a) : (b))
 
-//The size of each block in byte
-static UINT block_size = 256 * 1024;
+unsigned int file_cache::default_block_size = 1 * 1024 * 1024;
+unsigned int file_cache::random_access_tolerance_time = 5;
+unsigned int file_cache::random_access_range_curoff = default_block_size / 2;
 
+
+/*
+=====================================================================
+					utilities
+=====================================================================
+*/
+static unsigned int get_meta_minimum_size();
+static unsigned int get_meta_complete_indicator_offset(char* buffer);
+static unsigned int get_meta_identifier_size_offset(char* buffer);
+static unsigned int get_meta_block_size_offset(char* buffer);
+static unsigned int get_meta_block_number_offset(char* buffer);
+static unsigned int get_meta_identifier_offset(char* buffer);
+static unsigned int get_meta_block_indicator_offset(char* buffer);
+static unsigned int get_meta_total_offset(char* buffer);
+
+static bool& get_meta_complete_indicator(char* buffer);
+static unsigned int& get_meta_identifier_size(char* buffer);
+static unsigned int& get_meta_block_size(char* buffer);
+static unsigned int& get_meta_block_number(char* buffer);
+static char* get_meta_identifier_ptr(char* buffer);
+static char* get_meta_block_indicator(char* buffer);
+
+
+unsigned int get_meta_minimum_size() {
+	return get_meta_identifier_offset(nullptr);
+}
+UINT get_meta_complete_indicator_offset(char* buffer) {
+	return 0;
+}
+UINT get_meta_identifier_size_offset(char* buffer) {
+	return get_meta_complete_indicator_offset(buffer) + sizeof(bool);
+}
+UINT get_meta_block_size_offset(char* buffer) {
+	return get_meta_identifier_size_offset(buffer) + +sizeof(UINT);
+}
+UINT get_meta_block_number_offset(char* buffer) {
+	return get_meta_block_size_offset(buffer) + sizeof(UINT);
+}
+UINT get_meta_identifier_offset(char* buffer) {
+	return  get_meta_block_number_offset(buffer) + sizeof(UINT);
+}
+UINT get_meta_block_indicator_offset(char* buffer) {
+	return get_meta_identifier_offset(buffer) + get_meta_identifier_size(buffer);
+}
+unsigned int get_meta_total_offset(char* buffer) {
+	return get_meta_identifier_offset(buffer) + get_meta_identifier_size(buffer)
+		+ std::ceil(get_meta_block_number(buffer) / 8.0);
+}
+
+
+bool& get_meta_complete_indicator(char* buffer) {
+	return *((bool*)(buffer + get_meta_complete_indicator_offset(buffer)));
+}
+UINT& get_meta_identifier_size(char* buffer) {
+	return  *((UINT*)(buffer + get_meta_identifier_size_offset(buffer)));
+}
+UINT& get_meta_block_size(char* buffer) {
+	return  *((UINT*)(buffer + get_meta_block_size_offset(buffer)));
+}
+UINT& get_meta_block_number(char* buffer) {
+	return  *((UINT*)(buffer + get_meta_block_number_offset(buffer)));
+}
+char* get_meta_identifier_ptr(char* buffer) {
+	return  buffer + get_meta_identifier_offset(buffer);
+}
+char* get_meta_block_indicator(char* buffer) {
+	return  buffer + get_meta_block_indicator_offset(buffer);
+}
+
+
+
+size_t get_block_expected_size(size_t total_size, size_t  block_size, size_t block_id) {
+	size_t offset = block_id * block_size;
+	if (offset > total_size)
+		return 0;
+	else
+		return min(block_size, total_size - block_id * block_size);
+}
+
+void close_file(bi::file_mapping* file_handle, bi::mapped_region* map_handle) {
+	if (map_handle != nullptr) {
+		auto handle = (bi::mapped_region*) map_handle;
+		handle->flush();
+		delete handle;
+	}
+	if (file_handle != nullptr) {
+		auto handle = (bi::file_mapping*) file_handle;
+		delete handle;
+	}
+
+}
+size_t compute_meta_file_size(size_t identifier_size, size_t block_number)
+{
+	// complete indicator(bool) + file_identifier size(UINT) + block_size(UINT) + block_number(UINT) + 
+	// file_identifier(string) +  + block_indicator(in bit format)
+	size_t file_size = sizeof(bool) + 3 * sizeof(UINT) +
+		identifier_size * sizeof(char) + ceil(block_number / 8.0);
+	return file_size;
+}
+size_t compute_meta_file_size(string identifier, size_t block_number)
+{
+	return compute_meta_file_size(identifier.length() + 1, block_number);
+}
+UINT compute_block_number(size_t file_size, UINT block_size) {
+	return (UINT)(std::ceil(file_size / (double)block_size));
+}
+void write_file_identifier(char* buffer, string file_identifier) {
+	get_meta_identifier_size(buffer) = (UINT)((file_identifier.length() + 1) * sizeof(char));
+	memcpy_s(get_meta_identifier_ptr(buffer), get_meta_identifier_size(buffer),
+		file_identifier.c_str(), get_meta_identifier_size(buffer));
+}
 /*
 =====================================================================
 					private nonstatic functions
@@ -28,120 +142,230 @@ static UINT block_size = 256 * 1024;
 */
 
 void file_cache::initial_cache() {
-	//If cache_info has not been initialized
-	if (meta_file_handle == NULL) {
-		if (!bf::is_directory(cache_path)) {
-			bool result = bf::create_directories(cache_path);
-			if (!result) {
-				throw("Unable to create the cache path: %s", cache_path.c_str());
-			}
+	//If the cache path does not exist, create it
+	if (!bf::is_directory(cache_path)) {
+		bool result = bf::create_directories(cache_path);
+		if (!result) {
+			throw("Unable to create the cache path: %s", cache_path.c_str());
 		}
-		string meta_path = get_meta_path();
-		//Create the cache path if it does not exist
-		//Create the meta file if it does not exist
-		if (bf::exists(meta_path) && !bf::is_regular_file(meta_path)) {
+	}
+	string meta_path = get_meta_file_path();
+	//If the meta file path is not a file, we will delete it
+	if (bf::exists(meta_path) && !bf::is_regular_file(meta_path)) {
+		try {
 			bf::remove_all(meta_path);
 		}
-		bool is_new_meta = !bf::exists(meta_path);
-		if (is_new_meta) {
-			std::ofstream meta_file(meta_path.c_str(), std::ios::out | std::ios::binary);
-			if (!meta_file) {
-				throw("Cannot open meta file %s", meta_path.c_str());
+		catch (bf::filesystem_error e) {
+			throw("Cannot delete meta file %s, message:%s", meta_path.c_str(), e.what());
+		}
+	}
+	/*
+		If meta file does not exist
+		Create the file and open it
+		If the meta file exists
+		Open and validate if the file identifier matches
+	*/
+	if (!bf::exists(meta_path)) {
+		create_meta_file();
+		open_meta_file();
+	}
+	else {
+		open_meta_file();
+		if (!is_meta_file_valid(meta_path)) {
+			close_meta_file();
+			try {
+				bf::remove(meta_path);
 			}
-			// complete indicator(bool) + file_identifier size(UINT) + block_size(UINT) + block_number(UINT) + 
-			// file_identifier(string) +  + block_indicator(in bit format)
-			size_t file_size = sizeof(bool) + 3 * sizeof(UINT) +
-				(file_identifier.length() + 1) * sizeof(char) + block_number;
-			char* data_buffer = new char[file_size];
-			memset(data_buffer, 0, file_size);
-			get_meta_block_size(data_buffer) = block_size;
-			get_meta_block_number(data_buffer) = block_number;
-			write_file_identifier(data_buffer, file_identifier);
-
-			meta_file.write(data_buffer, file_size);
-			delete[] data_buffer;
-			meta_file.close();
-			if (!meta_file.good()) {
-				throw("Cannot write to meta file %s", meta_path.c_str());
+			catch (bf::filesystem_error e) {
+				throw("Cannot delete meta file %s, message:%s", meta_path.c_str(), e.what());
 			}
+			initial_cache();
+			return;
 		}
+	}
+	//Load the true block number,size,indicator from the meta file
+	block_size = get_meta_block_size(meta_ptr);
+	block_number = get_meta_block_number(meta_ptr);
+	block_indicator = get_meta_block_indicator(meta_ptr);
+	//Initial the vector which stores block handles
+	initial_block_handles();
+}
 
-		meta_file_handle = new bi::file_mapping(meta_path.c_str(), bi::read_write);
-		meta_map_handle = new bi::mapped_region(*(bi::file_mapping*)meta_file_handle, bi::read_write);
-		meta_ptr = (char*)((bi::mapped_region*)meta_map_handle)->get_address();
-		if (meta_ptr == NULL) {
-			throw("fail to map the meta data");
-		}
 
-		
-		if (!is_new_meta) {
-			//If the file identifier does not match
-			//Delete the meta and create a new one
-			size_t file_size = bf::file_size(meta_path);
-			size_t desired_file_size = get_meta_total_offset(meta_ptr);
-			string desired_file_identifier = get_meta_identifier_ptr(meta_ptr);
-			if (file_size < get_meta_minimum_size() ||
-				desired_file_size != file_size ||
-				desired_file_identifier != file_identifier) {
-				close_meta_file();
-				try {
-					bool success = bf::remove(meta_path);
-				}
-				catch (bf::filesystem_error e) {
-					throw("Cannot delete meta file %s", meta_path.c_str());
-				}
-				initial_cache();
-			}
-		}
-		else {
-			block_number = get_meta_block_number(meta_ptr);
-			block_size = get_meta_block_size(meta_ptr);
-			block_indicator = get_meta_block_indicator(meta_ptr);
-		}
+
+bool file_cache::is_meta_file_valid(string meta_path)
+{
+	//If the file identifier does not match
+	//Delete the meta and create a new one
+	size_t file_size = bf::file_size(meta_path);
+	if (file_size < get_meta_minimum_size()) {
+		return false;
+	}
+	//Compute the file size using the data in the meta file
+	size_t expected_file_size = compute_meta_file_size(
+		get_meta_identifier_size(meta_ptr),
+		get_meta_block_number(meta_ptr)
+	);
+	if (file_size != expected_file_size) {
+		return false;
+	}
+
+	string meta_file_identifier = get_meta_identifier_ptr(meta_ptr);
+	if (meta_file_identifier != file_identifier) {
+		return false;
+	}
+
+
+	UINT meta_block_size = get_meta_block_size(meta_ptr);
+	UINT meta_block_number = get_meta_block_number(meta_ptr);
+	if (meta_block_size == 0)
+		return false;
+	UINT expected_block_number = compute_block_number(this->file_size, meta_block_size);
+	if (meta_block_number != expected_block_number)
+		return false;
+
+	return true;
+}
+
+
+
+/*
+create meta file and write block size, number and file identifier to the file.
+other values are set to 0
+*/
+void file_cache::create_meta_file()
+{
+	string meta_path = get_meta_file_path();
+	std::ofstream meta_file(meta_path.c_str(), std::ios::out | std::ios::binary);
+	if (!meta_file) {
+		throw("Cannot open meta file %s", meta_path.c_str());
+	}
+	size_t file_size = compute_meta_file_size(file_identifier, block_number);
+	char* data_buffer = new char[file_size];
+	memset(data_buffer, 0, file_size);
+	get_meta_block_size(data_buffer) = block_size;
+	get_meta_block_number(data_buffer) = block_number;
+	write_file_identifier(data_buffer, file_identifier);
+
+	meta_file.write(data_buffer, file_size);
+	delete[] data_buffer;
+	meta_file.close();
+	if (!meta_file.good()) {
+		throw("Cannot write to meta file %s", meta_path.c_str());
 	}
 }
 
-void file_cache::close_meta_file() {
-	if (meta_map_handle != NULL) {
-		((bi::mapped_region*) meta_map_handle)->flush();
-		delete meta_map_handle;
-	}
-	if (meta_file_handle != NULL) {
-		//auto handle = (bi::file_mapping*) meta_file_handle;
-		//handle->remove(handle->get_name());
-		delete meta_file_handle;
-	}
 
-	meta_file_handle = NULL;
-	meta_map_handle = NULL;
-	meta_ptr = NULL;
-	block_indicator = NULL;
-}
-void file_cache::close_cache_file() {
-	if (cache_map_handle != NULL) {
-		((bi::mapped_region*) cache_map_handle)->flush();
-		delete cache_map_handle;
+//Create the cache file
+void file_cache::create_block_file(UINT block_index) {
+	size_t cache_file_size = get_block_expected_size(file_size, block_size, block_index);
+	string file_full_path = get_block_file_path(block_index);
+	//If the file does not exist, initialize the file
+	try {
+		if (!bf::exists(file_full_path)) {
+			std::ofstream output(file_full_path);
+			output.close();
+			if (!output.good()) {
+				throw("Unable to create cache file: %s", file_full_path.c_str());
+			}
+		}
+		if (bf::file_size(file_full_path) != cache_file_size) {
+			bf::resize_file(file_full_path, cache_file_size);
+		}
 	}
-	if (cache_file_handle != NULL) {
-		//auto handle = (bi::file_mapping*) cache_file_handle;
-		//handle->remove(handle->get_name());
-		delete cache_file_handle;
+	catch (bf::filesystem_error e) {
+		throw("Cannot create block file %u, message:%s", block_index, e.what());
 	}
-
-	cache_file_handle = NULL;
-	cache_map_handle = NULL;
-	cached_ptr = NULL;
 }
 
-string file_cache::get_meta_path() {
+
+void file_cache::initial_block_handles() {
+	if (block_map_handles.size() != 0)
+		throw("The block_map_handles has been initialized");
+	block_map_handles.resize(block_number, nullptr);
+	block_region_handles.resize(block_number, nullptr);
+	block_ptrs.resize(block_number, nullptr);
+}
+void file_cache::release_block_handles() {
+	for (auto i = 0; i < block_number; i++) {
+		close_block_file(i);
+	}
+}
+
+
+void*& file_cache::get_block_map(unsigned int block_id)
+{
+	return block_map_handles[block_id];
+}
+void*& file_cache::get_block_region(unsigned int block_id)
+{
+	return block_region_handles[block_id];
+}
+char*& file_cache::get_block_ptr(unsigned int block_id)
+{
+	return block_ptrs[block_id];
+}
+
+
+void open_file(string path, void*& map_handle, void*& region_handle, char*& ptr) {
+	if (map_handle != nullptr)
+		throw("Oops, something is wrong");
+	map_handle = new bi::file_mapping(path.c_str(), bi::read_write);
+	region_handle = new bi::mapped_region(*(bi::file_mapping*)map_handle, bi::read_write);
+	ptr = (char*)((bi::mapped_region*)region_handle)->get_address();
+	if (ptr == nullptr) {
+		throw("fail to map the meta data");
+	}
+
+}
+
+
+string file_cache::get_meta_file_path() {
 	string result = (cache_path / bf::path("meta_info")).string();
 	return result;
 }
-string file_cache::get_cache_path(unsigned int file_index) {
+string file_cache::get_block_file_path(unsigned int file_index) {
 	bf::path cache_name = bf::path("temp_" + std::to_string(file_index));
 	string result = (cache_path / cache_name).string();
 	return result;
 }
+void file_cache::open_meta_file()
+{
+	if (meta_map_handle != nullptr)
+		throw("Oops, something is wrong");
+	string meta_path = get_meta_file_path();
+	open_file(meta_path, meta_map_handle, meta_region_handle, meta_ptr);
+
+}
+
+void file_cache::open_block_file(unsigned int block_id)
+{
+	if (block_opened(block_id))
+		return;
+	string block_path = get_block_file_path(block_id);
+	open_file(block_path, get_block_map(block_id),
+		get_block_region(block_id),
+		get_block_ptr(block_id));
+}
+
+void file_cache::close_meta_file() {
+	close_file((bi::file_mapping*)meta_map_handle, (bi::mapped_region*) meta_region_handle);
+
+	meta_map_handle = nullptr;
+	meta_region_handle = nullptr;
+	meta_ptr = nullptr;
+	block_indicator = nullptr;
+}
+void file_cache::close_block_file(UINT block_id) {
+	bi::mapped_region*& region_handle = (bi::mapped_region*&) get_block_region(block_id);
+	bi::file_mapping*& map_handle = (bi::file_mapping*&) get_block_map(block_id);
+	close_file(map_handle, region_handle);
+
+	region_handle = nullptr;
+	map_handle = nullptr;
+	get_block_ptr(block_id) = nullptr;
+}
+
 
 
 
@@ -151,13 +375,19 @@ file_cache::block_read_info file_cache::get_block_read_info(
 	size_t read_size) {
 	UINT file_id = (UINT)(offset / block_size);
 	UINT file_byte_offset = (UINT)(offset - file_id * (size_t)block_size);
-	UINT read_length = (UINT)min((size_t)block_size - file_byte_offset, read_size);
+	UINT read_length = (UINT)min(block_size > file_byte_offset ? (size_t)block_size - file_byte_offset : 0,
+		read_size);
 
 	block_read_info read_info;
 	read_info.file_id = file_id;
 	read_info.file_byte_offset = file_byte_offset;
-	read_info.file_read_length = (UINT)read_size;
+	read_info.file_read_length = (UINT)read_length;
 	return read_info;
+}
+
+bool file_cache::block_opened(unsigned int block_id)
+{
+	return get_block_map(block_id) != nullptr;
 }
 
 bool file_cache::block_exists(UINT block_id) {
@@ -166,7 +396,7 @@ bool file_cache::block_exists(UINT block_id) {
 
 	char* indicator = block_indicator;
 	indicator = indicator + byte_offset;
-	return ((*block_indicator) >> within_byte_offset) & 0x1;
+	return ((*indicator) >> within_byte_offset) & 0x1;
 }
 void file_cache::set_block_bit(UINT block_id, bool bit_value) {
 	UINT byte_offset = block_id / 8;
@@ -176,10 +406,10 @@ void file_cache::set_block_bit(UINT block_id, bool bit_value) {
 	indicator = indicator + byte_offset;
 	char bit_mask = 1 << within_byte_offset;
 	if (bit_value) {
-		*block_indicator |= bit_mask;
+		*indicator |= bit_mask;
 	}
 	else {
-		*block_indicator &= ~bit_mask;
+		*indicator &= ~bit_mask;
 	}
 }
 
@@ -190,63 +420,14 @@ unsigned int file_cache::get_block_number() {
 	return block_number;
 }
 
-/*
-=====================================================================
-					private static functions
-=====================================================================
-*/
-
-unsigned int file_cache::get_meta_minimum_size() {
-	return get_meta_identifier_offset(NULL);
-}
-UINT file_cache::get_meta_complete_indicator_offset(char* buffer) {
-	return 0;
-}
-UINT file_cache::get_meta_identifier_size_offset(char* buffer) {
-	return get_meta_complete_indicator_offset(buffer) + sizeof(bool);
-}
-UINT file_cache::get_meta_block_size_offset(char* buffer) {
-	return get_meta_identifier_size_offset(buffer) + +sizeof(UINT);
-}
-UINT file_cache::get_meta_block_number_offset(char* buffer) {
-	return get_meta_block_size_offset(buffer) + sizeof(UINT);
-}
-UINT file_cache::get_meta_identifier_offset(char* buffer) {
-	return  get_meta_block_number_offset(buffer) + sizeof(UINT);
-}
-UINT file_cache::get_meta_block_indicator_offset(char* buffer) {
-	return get_meta_identifier_offset(buffer) + get_meta_identifier_size(buffer);
-}
-unsigned int file_cache::get_meta_total_offset(char* buffer) {
-	return get_meta_identifier_offset(buffer) + get_meta_identifier_size(buffer)
-		+ get_meta_block_size(buffer);
+void file_cache::create_mutex()
+{
+	mutex = std::vector<std::mutex>(block_number);
 }
 
-
-bool& file_cache::get_meta_complete_indicator(char* buffer) {
-	return *((bool*)(buffer + get_meta_complete_indicator_offset(buffer)));
-}
-UINT& file_cache::get_meta_identifier_size(char* buffer) {
-	return  *((UINT*)(buffer + get_meta_identifier_size_offset(buffer)));
-}
-UINT& file_cache::get_meta_block_size(char* buffer) {
-	return  *((UINT*)(buffer + get_meta_block_size_offset(buffer)));
-}
-UINT& file_cache::get_meta_block_number(char* buffer) {
-	return  *((UINT*)(buffer + get_meta_block_number_offset(buffer)));
-}
-char* file_cache::get_meta_identifier_ptr(char* buffer) {
-	return  buffer + get_meta_identifier_offset(buffer);
-}
-char* file_cache::get_meta_block_indicator(char* buffer) {
-	return  buffer + get_meta_block_indicator_offset(buffer);
-}
-
-
-void file_cache::write_file_identifier(char* buffer, string file_identifier) {
-	get_meta_identifier_size(buffer) = (UINT)((file_identifier.length() + 1) * sizeof(char));
-	memcpy_s(get_meta_identifier_ptr(buffer), get_meta_identifier_size(buffer),
-		file_identifier.c_str(), get_meta_identifier_size(buffer));
+std::mutex& file_cache::get_block_mutex(unsigned int block_id)
+{
+	return mutex[block_id];
 }
 
 
@@ -265,80 +446,97 @@ file_cache::file_cache(std::string cache_path, std::string file_identifier, size
 	this->cache_path = path.make_preferred().string();
 	this->file_identifier = file_identifier + std::to_string(file_size);
 	this->file_size = file_size;
-	this->block_size = block_size;
-	this->block_number = (UINT)(std::ceil(file_size / (double)block_size));
-	initial_cache();
+	if (block_size != 0)
+		this->block_size = block_size;
+	else
+		this->block_size = default_block_size;
+	this->block_number = compute_block_number(file_size, this->block_size);
+	try {
+		initial_cache();
+	}
+	catch (bf::filesystem_error e) {
+		throw("Cannot initial the cache file: %s", e.what());
+	}
+	create_mutex();
 }
 
 file_cache::~file_cache() {
+	release_block_handles();
 	close_meta_file();
-	close_cache_file();
 }
 
-//Open or create the cache file
-void file_cache::open_cache_file(UINT block_id) {
-	UINT file_index = block_id / 8;
-	//Check if the required cache file has been opened
-	//If not, close the current cache file and open the requried one
-	if (cache_file_handle != NULL) {
-		if (file_id == file_index) {
-			return;
-		}
-		else {
-			close_cache_file();
-		}
-	}
 
-	size_t cache_file_size = min(block_size, file_size - (size_t)block_id * block_size);
-	string file_full_path = get_cache_path(file_index);
-	//If the file does not exist, initialize the file
-	if (!bf::exists(file_full_path)) {
-		std::ofstream output(file_full_path);
-		output.close();
-		if (!output.good()) {
-			throw("Unable to create cache file: %s", file_full_path.c_str());
-		}
-	}
-	if (bf::file_size(file_full_path) != cache_file_size) {
-		bf::resize_file(file_full_path, cache_file_size);
-	}
-	cache_file_handle = new bi::file_mapping(file_full_path.c_str(), bi::read_write);
-	cache_map_handle = new bi::mapped_region(*(bi::file_mapping*)cache_file_handle, bi::read_write);
-	cached_ptr = (char*)((bi::mapped_region*)cache_map_handle)->get_address();
-	if (cached_ptr == NULL) {
-		throw("fail to map the meta data");
-	}
-	file_id = file_index;
-}
-
+//boost::mutex mutex;
 
 bool file_cache::read_data(char* buffer, size_t offset, size_t read_size) {
-	void* cloud_buffer = NULL;
-	while (read_size != 0) {
+	bool success = true;
+	stat_mutex.lock();
+	size_t lower_bound = last_read_offset > random_access_range_curoff ?
+		last_read_offset - random_access_range_curoff : 0;
+	size_t upper_bound = last_read_offset + last_read_size + random_access_range_curoff;
+	if (!(offset <= upper_bound && lower_bound <= offset + read_size)) {
+		random_read_time++;
+	}
+	else {
+		random_read_time = 0;
+	}
+	last_read_offset = offset;
+	last_read_size = read_size;
+	stat_mutex.unlock();
+	if (random_read_time > random_access_tolerance_time && read_size < block_size / 8) {
+		try {
+			(*data_func)(file_info, buffer, offset, read_size);
+		}
+		catch (std::exception e) {
+			success = false;
+		}
+	}
+
+	//mutex.lock();
+	while (read_size != 0 && success) {
 		block_read_info read_info = get_block_read_info(offset, read_size);
-		open_cache_file(read_info.file_id);
-		char* target_cache_ptr = cached_ptr + read_info.file_byte_offset;
+		UINT target_block = read_info.file_id;
+		get_block_mutex(target_block).lock();
+
+		if (!block_opened(target_block)) {
+			create_block_file(target_block);
+			open_block_file(target_block);
+		}
+		char* target_cache_ptr = get_block_ptr(target_block) + read_info.file_byte_offset;
 		size_t target_read_size = read_info.file_read_length;
 
-		if (!block_exists(read_info.file_id)) {
+		if (!block_exists(target_block)) {
 			//If the data does not exist, we download it from the cloud
-			size_t cloud_file_offset = read_info.file_id * block_size;
-			size_t cloud_file_len = min(block_size, file_size - read_info.file_id * block_size);
+			size_t cloud_file_offset = target_block * block_size;
+			size_t cloud_file_len = get_block_expected_size(file_size, block_size, target_block);
 			try {
-				(*data_func)(file_info, cached_ptr, cloud_file_offset, cloud_file_len);
+				(*data_func)(file_info, get_block_ptr(target_block), cloud_file_offset, cloud_file_len);
 			}
 			catch (std::exception e) {
-				return false;
+				success = false;
+				break;
 			}
-			((bi::mapped_region*) cache_map_handle)->flush();
-			set_block_bit(read_info.file_id, true);
+			((bi::mapped_region*) get_block_region(target_block))->flush();
+			set_block_bit(target_block, true);
 		}
+		get_block_mutex(target_block).unlock();
+
 		memcpy_s(buffer, target_read_size, target_cache_ptr, target_read_size);
 
 		buffer = buffer + target_read_size;
 		offset = offset + target_read_size;
 		read_size = read_size - target_read_size;
 	}
-	return true;
+	return success;
+}
+
+void* file_cache::get_file_info()
+{
+	return file_info;
+}
+
+void file_cache::set_file_info(void* file_info)
+{
+	this->file_info = file_info;
 }
 

@@ -98,7 +98,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>C:\Program Files\Dokan\DokanLibrary-1.4.0\lib\dokan1.lib;bcrypt.lib;winhttp.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>C:\Program Files\Dokan\DokanLibrary-1.4.0\lib\dokan1.lib;Wldap32.Lib;Ws2_32.Lib;bcrypt.lib;winhttp.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(boost_root)\stage\lib;</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -116,7 +116,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>C:\Program Files\Dokan\DokanLibrary-1.4.0\lib\dokan1.lib;bcrypt.lib;winhttp.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>C:\Program Files\Dokan\DokanLibrary-1.4.0\lib\dokan1.lib;Wldap32.Lib;Ws2_32.Lib;bcrypt.lib;winhttp.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(boost_root)\stage\lib;</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -138,7 +138,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>C:\Program Files\Dokan\DokanLibrary-1.4.0\lib\dokan1.lib;bcrypt.lib;winhttp.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>C:\Program Files\Dokan\DokanLibrary-1.4.0\lib\dokan1.lib;Wldap32.Lib;Ws2_32.Lib;bcrypt.lib;winhttp.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(boost_root)\stage\lib;</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -160,24 +160,26 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>C:\Program Files\Dokan\DokanLibrary-1.4.0\lib\dokan1.lib;bcrypt.lib;winhttp.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>C:\Program Files\Dokan\DokanLibrary-1.4.0\lib\dokan1.lib;Wldap32.Lib;Ws2_32.Lib;bcrypt.lib;winhttp.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(boost_root)\stage\lib;</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="dokan.cpp" />
+    <ClCompile Include="dokanOperations.cpp" />
     <ClCompile Include="fileCache.cpp" />
     <ClCompile Include="FileManager.cpp" />
     <ClCompile Include="GCSDokan.cpp" />
+    <ClCompile Include="globalVariables.cpp" />
     <ClCompile Include="googleAuth.cpp" />
     <ClCompile Include="restAPIs.cpp" />
     <ClCompile Include="restUtilities.cpp" />
     <ClCompile Include="utilities.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="dokan.h" />
+    <ClInclude Include="dokanOperations.h" />
     <ClInclude Include="fileCache.h" />
     <ClInclude Include="fileManager.h" />
+    <ClInclude Include="globalVariables.h" />
     <ClInclude Include="googleAuth.h" />
     <ClInclude Include="restAPIs.h" />
     <ClInclude Include="dataTypes.h" />

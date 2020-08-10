@@ -1,18 +1,10 @@
 #include <malloc.h>
-#include "dokan.h"
+#include "dokanOperations.h"
 #include "fileManager.h"
 #include "utilities.h"
 #include "dataTypes.h"
 
 using std::wstring;
-
-
-#ifdef WIN10_ENABLE_LONG_PATH
-//dirty but should be enough
-#define DOKAN_MAX_PATH 32768
-#else
-#define DOKAN_MAX_PATH MAX_PATH
-#endif // DEBUG
 
 
 static int event_count = 0;
@@ -33,9 +25,6 @@ static int event_count = 0;
 
 #define WCSMATCH(x, y) ((wcslen(x) == wcslen(y)) && wcscmp(x,y)==0)
 
-//The minimum distance between the first file read and second one in bytes
-//which will be considered as an random access
-#define continuous_tolerance 128
 
 void print_flag(ULONG share_access, ACCESS_MASK desired_access,
 	DWORD attr_and_flags, DWORD creation_disposition) {
@@ -161,7 +150,7 @@ cloud_create_file(LPCWSTR file_name, PDOKAN_IO_SECURITY_CONTEXT security_context
 	}
 
 	bool exist_path = true;
-	if (exist_file(file_name)) {
+	if (wcslen(file_name)!=1&&exist_file(file_name)) {
 		dokan_file_info->IsDirectory = false;
 		if (create_options & FILE_DIRECTORY_FILE) {
 			debug_print(L"error: file is not a directory\n");
@@ -225,15 +214,20 @@ cloud_create_file(LPCWSTR file_name, PDOKAN_IO_SECURITY_CONTEXT security_context
 
 void DOKAN_CALLBACK cloud_close_file(LPCWSTR file_name,
 	PDOKAN_FILE_INFO dokan_file_info) {
-	debug_print(L"### CloseFile : %llu\n", ((file_private_info*)dokan_file_info->Context)->event_id);
+	file_private_info* private_info = (file_private_info*)dokan_file_info->Context;
+	debug_print(L"### CloseFile : %llu\n", private_info->event_id);
 	debug_print(L"file name: %s\n", file_name);
 }
 
 
 void DOKAN_CALLBACK cloud_cleanup(LPCWSTR file_name,
 	PDOKAN_FILE_INFO dokan_file_info) {
-	debug_print(L"### Cleanup : %llu\n", ((file_private_info*)dokan_file_info->Context)->event_id);
+	file_private_info* private_info = (file_private_info*)dokan_file_info->Context;
+	debug_print(L"### Cleanup : %llu\n", private_info->event_id);
 	debug_print(L"file name: %s\n", file_name);
+	if (private_info->manager_handle != nullptr) {
+		release_file_manager_handle(private_info->manager_handle);
+	}
 }
 
 
@@ -260,21 +254,14 @@ NTSTATUS DOKAN_CALLBACK cloud_read_file(LPCWSTR file_name, LPVOID buffer,
 		return STATUS_SUCCESS;
 	}
 	//Check whether it is a random access or not
-	if (private_info->last_read_offset != 0) {
-		size_t last_offset = private_info->last_read_offset;
-		size_t last_length = private_info->last_read_length;
-		size_t lower_bound = last_offset > continuous_tolerance ? last_offset - continuous_tolerance : last_length;
-		size_t upper_bound = last_offset + last_length + continuous_tolerance;
-		if (!(offset <= upper_bound && lower_bound <= offset + true_read_len)) {
-			private_info->random_read_time ++;
-		}
-		else {
-			private_info->random_read_time = 0;
-		}
+	/*
+	}*/
+	if (private_info->manager_handle == nullptr) {
+		private_info->manager_handle = get_file_manager_handle(file_name);
 	}
-
-
-	NTSTATUS status = get_file_data(file_name, buffer, offset, true_read_len, private_info);
+	//auto handle = get_file_manager_handle(file_name);
+	NTSTATUS status = get_file_data(private_info->manager_handle, buffer, offset, true_read_len);
+	//release_file_manager_handle(handle);
 	debug_print(L"final read size:%llu\n", true_read_len);
 	return status;
 }
@@ -352,7 +339,7 @@ cloud_find_files(LPCWSTR file_name,
 	folder_meta_info dir_info = get_folder_meta(file_name);
 	for (auto i : dir_info.folder_names) {
 		findData.dwFileAttributes = FILE_ATTRIBUTE_DIRECTORY;
-		wcscpy_s(findData.cFileName, DOKAN_MAX_PATH, i.c_str());
+		wcscpy_s(findData.cFileName, DIRECTORY_MAX_PATH, i.c_str());
 		fill_find_data(&findData, dokan_file_info);
 	}
 
@@ -364,7 +351,7 @@ cloud_find_files(LPCWSTR file_name,
 		findData.ftCreationTime = i.second.time_created;
 		findData.ftLastWriteTime = i.second.time_updated;
 		findData.ftLastAccessTime = i.second.time_updated;
-		wcscpy_s(findData.cFileName, DOKAN_MAX_PATH, i.second.local_name.c_str());
+		wcscpy_s(findData.cFileName, DIRECTORY_MAX_PATH, i.second.local_name.c_str());
 		fill_find_data(&findData, dokan_file_info);
 	}
 

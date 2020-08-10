@@ -33,10 +33,13 @@
     <ClCompile Include="FileManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="dokan.cpp">
+    <ClCompile Include="fileCache.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="fileCache.cpp">
+    <ClCompile Include="globalVariables.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dokanOperations.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -59,10 +62,13 @@
     <ClInclude Include="dataTypes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="dokan.h">
+    <ClInclude Include="fileCache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="fileCache.h">
+    <ClInclude Include="globalVariables.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dokanOperations.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -2,8 +2,12 @@
 #include <string>
 
 
-bool gcloud_auth(const char* email = NULL);
+bool auto_auth();
+bool gcloud_auth(std::wstring email);
+bool json_auth(std::wstring path);
 
+bool refresh_token();
+bool is_token_outdated();
 
 std::wstring& get_token();
 void clear_token();

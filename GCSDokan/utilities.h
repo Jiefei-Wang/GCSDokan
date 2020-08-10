@@ -1,8 +1,7 @@
 #pragma once
 #include <string>
-#include "dokan.h"
+#include "dokan/dokan.h"
 
-extern short verbose_level;
 
 //CMD related function
 std::string execute_command(const char* cmd);
@@ -42,3 +41,5 @@ static inline void LlongToDwLowHigh(const LONGLONG& value, DWORD& low,
     low = static_cast<DWORD>(value);
 }
 
+
+std::string to_base64(void* data, size_t size);

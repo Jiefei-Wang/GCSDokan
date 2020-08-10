@@ -3,14 +3,12 @@
 #include "fileManager.h"
 #include "restAPIs.h"
 #include "utilities.h"
+#include "fileCache.h"
+#include "globalVariables.h"
+
 
 using std::wstring;
-//wstring root_path = L"genomics-public-data";
-wstring root_path = L"bioconductor_test";
-wstring cache_root = L"D:\\test";
-bool use_cache = true;
-bool use_disk_cache = true;
-size_t update_interval = 60 * 10;
+//Key: full remote path(bucket + path)
 std::map<wstring, REST_result_holder> result_holder;
 
 #define EXIST_FOLDER(meta) (meta.file_meta_vector.size()!=0 || meta.folder_names.size()!=0 || meta.local_name==L"/")
@@ -125,19 +123,24 @@ void update_folder_info(wstring linux_full_path) {
 }
 
 void update_info(wstring linux_full_path) {
-
+	if (linux_full_path == remote_link) {
+		update_folder_info(linux_full_path);
+		return;
+	}
 	// We first update its parent folder
 	// If we identify the path as a folder then update the folder
 	// Otherwise do nothing for we have all the information in its parent folder
 	wstring parent_path = to_parent_folder(linux_full_path);
-	if (parent_path == root_path) {
-		update_folder_info(parent_path);
-	}
-	else {
-		update_info(parent_path);
-	}
+	update_info(parent_path);
+
 	if (exist_folder_name_in_parent(linux_full_path)) {
 		update_folder_info(linux_full_path);
+	}
+	else {
+		folder_meta_info info;
+		info.local_full_path = linux_full_path;
+		info.local_name = get_file_name_in_path(linux_full_path);
+		add_folder_to_map(linux_full_path, info);
 	}
 }
 
@@ -147,7 +150,7 @@ folder_meta_info get_folder_meta(wstring win_path)
 {
 	wstring linux_path = to_linux_slash(win_path);
 	if (linux_path == L"/") linux_path = L"";
-	wstring linux_full_path = build_path(root_path, linux_path);
+	wstring linux_full_path = build_path(remote_link, linux_path);
 	update_info(linux_full_path);
 	return get_folder_meta_internal(linux_full_path);
 }
@@ -156,7 +159,7 @@ file_meta_info get_file_meta(wstring win_path)
 {
 	wstring linux_path = to_linux_slash(win_path);
 	if (linux_path == L"/") linux_path = L"";
-	wstring linux_full_path = build_path(root_path, linux_path);
+	wstring linux_full_path = build_path(remote_link, linux_path);
 	update_info(linux_full_path);
 	return get_file_meta_internal(linux_full_path);
 }
@@ -171,7 +174,7 @@ bool exist_file(wstring win_path)
 {
 	wstring linux_path = to_linux_slash(win_path);
 	if (linux_path == L"/") linux_path = L"";
-	wstring linux_full_path = build_path(root_path, linux_path);
+	wstring linux_full_path = build_path(remote_link, linux_path);
 	update_info(linux_full_path);
 	return exist_file_in_cloud(linux_full_path);
 }
@@ -179,8 +182,8 @@ bool exist_file(wstring win_path)
 bool exist_folder(wstring win_path)
 {
 	wstring linux_path = to_linux_slash(win_path);
-	if (linux_path == L"/") linux_path = L"";
-	wstring linux_full_path = build_path(root_path, linux_path);
+	if (linux_path == L"/") return true;
+	wstring linux_full_path = build_path(remote_link, linux_path);
 	update_info(linux_full_path);
 	return exist_folder_in_cloud(linux_full_path);
 }
@@ -196,37 +199,52 @@ NTSTATUS get_file_data_from_cloud(wstring win_path, void* buffer, size_t offset,
 }
 
 void read_file_from_cloud(void* linux_full_path, void* buffer, size_t offset, size_t length) {
-	get_file_data_internal(*(wstring*)linux_full_path, buffer, offset, length);
+	wstring* path = (wstring*)linux_full_path;
+	get_file_data_internal(*path, buffer, offset, length);
 }
 
-#include "fileCache.h"
-NTSTATUS get_file_data(wstring win_path, void* buffer, size_t offset, size_t length, file_private_info* private_info)
-{
-	void*& cache_info = private_info->cache_info;
+
+
+file_manager_handle get_file_manager_handle(wstring win_path) {
+	file_manager_handle manager_handle = new file_manager_handle_struct{};
+	manager_handle->cache_type = cache_type;
+	manager_handle->win_path = win_path;
 	file_meta_info file_meta = get_file_meta(win_path);
+	manager_handle->linux_full_path = file_meta.remote_full_path;
+	if (manager_handle->cache_type == CACHE_TYPE::disk) {
+		manager_handle->cache_info = new file_cache(
+			wstringToString(build_path(cache_root, win_path, L'\\')),
+			wstringToString(file_meta.crc32c),
+			file_meta.size,
+			&read_file_from_cloud,
+			&manager_handle->linux_full_path);
+	}
+	return manager_handle;
+}
+
+void release_file_manager_handle(file_manager_handle file_manager) {
+	delete file_manager;
+}
+
+
+
+NTSTATUS get_file_data(file_manager_handle file_manager, void* buffer, size_t offset, size_t length)
+{
 	bool success = false;
-	if (use_cache&& private_info->random_read_time < randome_access_tolerance) {
-		if (use_disk_cache) {
-			if (cache_info == nullptr)
-				cache_info = new file_cache(
-					wstringToString(build_path(cache_root, win_path, L'\\')),
-					wstringToString(file_meta.crc32c),
-					file_meta.size,
-					&read_file_from_cloud,
-					(void*)&file_meta.remote_full_path);
-			try {
-				((file_cache*)cache_info)->read_data((char*)buffer, offset, length);
-				success = true;
-			}
-			catch (std::exception) {
-			}
-		}
-		else {
-			//TODO: memory cache
-		}
+	if (file_manager->cache_type == CACHE_TYPE::disk) {
+		file_cache* cache_info = (file_cache*)file_manager->cache_info;
+		//try {
+			cache_info->read_data((char*)buffer, offset, length);
+			success = true;
+		//}
+		//catch (std::exception) {
+		//}
+	}
+	else {
+		//TODO: memory cache
 	}
 	if (!success) {
-		return get_file_data_from_cloud(win_path, buffer, offset, length);
+		return get_file_data_from_cloud(file_manager->win_path, buffer, offset, length);
 	}
 	else {
 		return STATUS_SUCCESS;
