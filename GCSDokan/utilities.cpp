@@ -112,7 +112,6 @@ void debug_print(LPCWSTR format, ...) {
 }
 
 void error_print(LPCWSTR format, ...) {
-    if (verbose_level > 0) {
         va_list args;
         int len;
         wchar_t* buffer;
@@ -122,8 +121,37 @@ void error_print(LPCWSTR format, ...) {
         vswprintf_s(buffer, len, format, args);
         wprintf(buffer);
         _freea(buffer);
+}
+
+
+
+void debug_print(LPCSTR format, ...) {
+    if (verbose_level > 0) {
+        va_list args;
+        int len;
+        char* buffer;
+        va_start(args, format);
+        len = _vscprintf(format, args) + 1;
+        buffer = (char*)_malloca(len * sizeof(char));
+        vsprintf_s(buffer, len, format, args);
+        printf(buffer);
+        _freea(buffer);
     }
 }
+
+void error_print(LPCSTR format, ...) {
+        va_list args;
+        int len;
+        char* buffer;
+        va_start(args, format);
+        len = _vscprintf(format, args) + 1;
+        buffer = (char*)_malloca(len * sizeof(char));
+        vsprintf_s(buffer, len, format, args);
+        printf(buffer);
+        _freea(buffer);
+}
+
+
 
 bool endsWith(std::wstring str, std::wstring suffix)
 {

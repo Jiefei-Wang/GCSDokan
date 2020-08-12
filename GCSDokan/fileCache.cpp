@@ -22,7 +22,13 @@ using std::string;
 
 unsigned int file_cache::default_block_size = 1 * 1024 * 1024;
 unsigned int file_cache::random_access_tolerance_time = 5;
-unsigned int file_cache::random_access_range_curoff = default_block_size / 2;
+unsigned int file_cache::random_access_range_cutoff = default_block_size / 2;
+
+struct block_read_info {
+	unsigned int file_id;
+	unsigned int file_byte_offset;
+	unsigned int file_read_length;
+};
 
 
 /*
@@ -47,55 +53,55 @@ static char* get_meta_identifier_ptr(char* buffer);
 static char* get_meta_block_indicator(char* buffer);
 
 
-unsigned int get_meta_minimum_size() {
+static unsigned int get_meta_minimum_size() {
 	return get_meta_identifier_offset(nullptr);
 }
-UINT get_meta_complete_indicator_offset(char* buffer) {
+static UINT get_meta_complete_indicator_offset(char* buffer) {
 	return 0;
 }
-UINT get_meta_identifier_size_offset(char* buffer) {
+static UINT get_meta_identifier_size_offset(char* buffer) {
 	return get_meta_complete_indicator_offset(buffer) + sizeof(bool);
 }
-UINT get_meta_block_size_offset(char* buffer) {
+static UINT get_meta_block_size_offset(char* buffer) {
 	return get_meta_identifier_size_offset(buffer) + +sizeof(UINT);
 }
-UINT get_meta_block_number_offset(char* buffer) {
+static UINT get_meta_block_number_offset(char* buffer) {
 	return get_meta_block_size_offset(buffer) + sizeof(UINT);
 }
-UINT get_meta_identifier_offset(char* buffer) {
+static UINT get_meta_identifier_offset(char* buffer) {
 	return  get_meta_block_number_offset(buffer) + sizeof(UINT);
 }
-UINT get_meta_block_indicator_offset(char* buffer) {
+static UINT get_meta_block_indicator_offset(char* buffer) {
 	return get_meta_identifier_offset(buffer) + get_meta_identifier_size(buffer);
 }
-unsigned int get_meta_total_offset(char* buffer) {
+static unsigned int get_meta_total_offset(char* buffer) {
 	return get_meta_identifier_offset(buffer) + get_meta_identifier_size(buffer)
-		+ std::ceil(get_meta_block_number(buffer) / 8.0);
+		+ (UINT)std::ceil(get_meta_block_number(buffer) / 8.0);
 }
 
 
-bool& get_meta_complete_indicator(char* buffer) {
+static bool& get_meta_complete_indicator(char* buffer) {
 	return *((bool*)(buffer + get_meta_complete_indicator_offset(buffer)));
 }
-UINT& get_meta_identifier_size(char* buffer) {
+static UINT& get_meta_identifier_size(char* buffer) {
 	return  *((UINT*)(buffer + get_meta_identifier_size_offset(buffer)));
 }
-UINT& get_meta_block_size(char* buffer) {
+static UINT& get_meta_block_size(char* buffer) {
 	return  *((UINT*)(buffer + get_meta_block_size_offset(buffer)));
 }
-UINT& get_meta_block_number(char* buffer) {
+static UINT& get_meta_block_number(char* buffer) {
 	return  *((UINT*)(buffer + get_meta_block_number_offset(buffer)));
 }
-char* get_meta_identifier_ptr(char* buffer) {
+static char* get_meta_identifier_ptr(char* buffer) {
 	return  buffer + get_meta_identifier_offset(buffer);
 }
-char* get_meta_block_indicator(char* buffer) {
+static char* get_meta_block_indicator(char* buffer) {
 	return  buffer + get_meta_block_indicator_offset(buffer);
 }
 
 
 
-size_t get_block_expected_size(size_t total_size, size_t  block_size, size_t block_id) {
+static size_t get_block_expected_size(size_t total_size, size_t  block_size, size_t block_id) {
 	size_t offset = block_id * block_size;
 	if (offset > total_size)
 		return 0;
@@ -103,7 +109,7 @@ size_t get_block_expected_size(size_t total_size, size_t  block_size, size_t blo
 		return min(block_size, total_size - block_id * block_size);
 }
 
-void close_file(bi::file_mapping* file_handle, bi::mapped_region* map_handle) {
+static void close_file(bi::file_mapping* file_handle, bi::mapped_region* map_handle) {
 	if (map_handle != nullptr) {
 		auto handle = (bi::mapped_region*) map_handle;
 		handle->flush();
@@ -115,22 +121,38 @@ void close_file(bi::file_mapping* file_handle, bi::mapped_region* map_handle) {
 	}
 
 }
-size_t compute_meta_file_size(size_t identifier_size, size_t block_number)
+static size_t compute_meta_file_size(size_t identifier_size, size_t block_number)
 {
 	// complete indicator(bool) + file_identifier size(UINT) + block_size(UINT) + block_number(UINT) + 
 	// file_identifier(string) +  + block_indicator(in bit format)
 	size_t file_size = sizeof(bool) + 3 * sizeof(UINT) +
-		identifier_size * sizeof(char) + ceil(block_number / 8.0);
+		identifier_size * sizeof(char) + (UINT)ceil(block_number / 8.0);
 	return file_size;
 }
-size_t compute_meta_file_size(string identifier, size_t block_number)
+static size_t compute_meta_file_size(string identifier, size_t block_number)
 {
 	return compute_meta_file_size(identifier.length() + 1, block_number);
 }
-UINT compute_block_number(size_t file_size, UINT block_size) {
+static UINT compute_block_number(size_t file_size, UINT block_size) {
 	return (UINT)(std::ceil(file_size / (double)block_size));
 }
-void write_file_identifier(char* buffer, string file_identifier) {
+static block_read_info get_block_read_info(
+	size_t offset,
+	size_t read_size,
+	size_t block_size) {
+	UINT file_id = (UINT)(offset / block_size);
+	UINT file_byte_offset = (UINT)(offset - file_id * (size_t)block_size);
+	UINT read_length = (UINT)min(block_size > file_byte_offset ? (size_t)block_size - file_byte_offset : 0,
+		read_size);
+
+	block_read_info read_info;
+	read_info.file_id = file_id;
+	read_info.file_byte_offset = file_byte_offset;
+	read_info.file_read_length = (UINT)read_length;
+	return read_info;
+}
+
+static void write_file_identifier(char* buffer, string file_identifier) {
 	get_meta_identifier_size(buffer) = (UINT)((file_identifier.length() + 1) * sizeof(char));
 	memcpy_s(get_meta_identifier_ptr(buffer), get_meta_identifier_size(buffer),
 		file_identifier.c_str(), get_meta_identifier_size(buffer));
@@ -257,7 +279,7 @@ void file_cache::create_meta_file()
 
 
 //Create the cache file
-void file_cache::create_block_file(UINT block_index) {
+void file_cache::create_block_file_if_not(UINT block_index) {
 	size_t cache_file_size = get_block_expected_size(file_size, block_size, block_index);
 	string file_full_path = get_block_file_path(block_index);
 	//If the file does not exist, initialize the file
@@ -287,7 +309,7 @@ void file_cache::initial_block_handles() {
 	block_ptrs.resize(block_number, nullptr);
 }
 void file_cache::release_block_handles() {
-	for (auto i = 0; i < block_number; i++) {
+	for (UINT i = 0; i < block_number; i++) {
 		close_block_file(i);
 	}
 }
@@ -370,20 +392,7 @@ void file_cache::close_block_file(UINT block_id) {
 
 
 
-file_cache::block_read_info file_cache::get_block_read_info(
-	size_t offset,
-	size_t read_size) {
-	UINT file_id = (UINT)(offset / block_size);
-	UINT file_byte_offset = (UINT)(offset - file_id * (size_t)block_size);
-	UINT read_length = (UINT)min(block_size > file_byte_offset ? (size_t)block_size - file_byte_offset : 0,
-		read_size);
 
-	block_read_info read_info;
-	read_info.file_id = file_id;
-	read_info.file_byte_offset = file_byte_offset;
-	read_info.file_read_length = (UINT)read_length;
-	return read_info;
-}
 
 bool file_cache::block_opened(unsigned int block_id)
 {
@@ -430,6 +439,23 @@ std::mutex& file_cache::get_block_mutex(unsigned int block_id)
 	return mutex[block_id];
 }
 
+bool file_cache::is_random_read(size_t offset, size_t read_size) {
+	file_mutex.lock();
+	size_t lower_bound = last_read_offset > random_access_range_cutoff ?
+		last_read_offset - random_access_range_cutoff : 0;
+	size_t upper_bound = last_read_offset + last_read_size + random_access_range_cutoff;
+	if (!(offset <= upper_bound && lower_bound <= offset + read_size)) {
+		random_read_time++;
+	}
+	else {
+		random_read_time = 0;
+	}
+	last_read_offset = offset;
+	last_read_size = read_size;
+	file_mutex.unlock();
+	return random_read_time > random_access_tolerance_time && read_size < block_size / 8;
+}
+
 
 /*
 =====================================================================
@@ -468,66 +494,55 @@ file_cache::~file_cache() {
 
 //boost::mutex mutex;
 
-bool file_cache::read_data(char* buffer, size_t offset, size_t read_size) {
-	bool success = true;
-	stat_mutex.lock();
-	size_t lower_bound = last_read_offset > random_access_range_curoff ?
-		last_read_offset - random_access_range_curoff : 0;
-	size_t upper_bound = last_read_offset + last_read_size + random_access_range_curoff;
-	if (!(offset <= upper_bound && lower_bound <= offset + read_size)) {
-		random_read_time++;
-	}
-	else {
-		random_read_time = 0;
-	}
-	last_read_offset = offset;
-	last_read_size = read_size;
-	stat_mutex.unlock();
-	if (random_read_time > random_access_tolerance_time && read_size < block_size / 8) {
+void file_cache::read_data(char* buffer, size_t offset, size_t read_size) {
+	bool random_read = is_random_read(offset, read_size);
+	if (random_read) {
 		try {
 			(*data_func)(file_info, buffer, offset, read_size);
 		}
 		catch (std::exception e) {
-			success = false;
+			throw(e);
 		}
 	}
 
 	//mutex.lock();
-	while (read_size != 0 && success) {
-		block_read_info read_info = get_block_read_info(offset, read_size);
+	while (read_size != 0) {
+		block_read_info read_info = get_block_read_info(offset, read_size,block_size);
 		UINT target_block = read_info.file_id;
-		get_block_mutex(target_block).lock();
 
+		get_block_mutex(target_block).lock();
+		//If the block has not been created on disk, we create and open it
+		//Otherwise, we just open it if it haven't.
 		if (!block_opened(target_block)) {
-			create_block_file(target_block);
+			create_block_file_if_not(target_block);
 			open_block_file(target_block);
 		}
-		char* target_cache_ptr = get_block_ptr(target_block) + read_info.file_byte_offset;
-		size_t target_read_size = read_info.file_read_length;
 
+		//If the data does not exist but the block has been opened
+		//It means the block is a newly created one, we download its data from the cloud
 		if (!block_exists(target_block)) {
-			//If the data does not exist, we download it from the cloud
 			size_t cloud_file_offset = target_block * block_size;
 			size_t cloud_file_len = get_block_expected_size(file_size, block_size, target_block);
 			try {
 				(*data_func)(file_info, get_block_ptr(target_block), cloud_file_offset, cloud_file_len);
 			}
 			catch (std::exception e) {
-				success = false;
-				break;
+				throw(e);
 			}
 			((bi::mapped_region*) get_block_region(target_block))->flush();
 			set_block_bit(target_block, true);
 		}
 		get_block_mutex(target_block).unlock();
 
+		// Copy the data from cache to the pointer
+		char* target_cache_ptr = get_block_ptr(target_block) + read_info.file_byte_offset;
+		size_t target_read_size = read_info.file_read_length;
 		memcpy_s(buffer, target_read_size, target_cache_ptr, target_read_size);
 
 		buffer = buffer + target_read_size;
 		offset = offset + target_read_size;
 		read_size = read_size - target_read_size;
 	}
-	return success;
 }
 
 void* file_cache::get_file_info()

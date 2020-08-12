@@ -122,7 +122,7 @@ int process_arguments(int argc, char* argv[]) {
 		}
 		boost::to_lower(command_str);
 		//verbose
-		if (command_str == "-v") {
+		if (command_str == "-v"|| command_str == "-verbose") {
 			verbose_level = 1;
 			continue;
 		}
@@ -140,7 +140,7 @@ int process_arguments(int argc, char* argv[]) {
 				char buffer[DIRECTORY_MAX_PATH];
 				size_t len = GetTempPathA(DIRECTORY_MAX_PATH, buffer);
 				if (len == 0 || len > DIRECTORY_MAX_PATH) {
-					error_print(L"Fail to get a temporary path\n");
+					error_print("Fail to get a temporary path\n");
 					return EXIT_FAILURE;
 				}
 				cache_root = stringToWstring(buffer);
@@ -151,6 +151,17 @@ int process_arguments(int argc, char* argv[]) {
 		//memory cache
 		if (command_str == "-mc") {
 			cache_type = CACHE_TYPE::memory;
+			if (command + 1 != argc &&
+				argv[command + 1][0] != '-') {
+				CHECK_CMD_ARG(command, argc);
+				try {
+					memory_cache_block_number = std::stoi(argv[command]);
+				}
+				catch (std::exception ex) {
+					error_print("unknown memory cache option: %s\n", argv[command]);
+					return EXIT_FAILURE;
+				}
+			}
 			continue;
 		}
 		//no cache
@@ -167,7 +178,7 @@ int process_arguments(int argc, char* argv[]) {
 		if (command_str == "-nonblock" || command_str == "-secretblock") {
 			continue;
 		}
-		error_print(L"unknown command: %s\n", argv[command]);
+		error_print("unknown command: %s\n", argv[command]);
 		return EXIT_FAILURE;
 	}
 

@@ -9,13 +9,9 @@
 class file_cache{
     typedef void (*read_data_func)(void* file_info, void* buffer, size_t offset, size_t length);
 private:
-    struct block_read_info {
-        unsigned int file_id;
-        unsigned int file_byte_offset;
-        unsigned int file_read_length;
-    };
+    
     //Default values
-    static unsigned int random_access_range_curoff;
+    static unsigned int random_access_range_cutoff;
     static unsigned int random_access_tolerance_time;
     static unsigned int default_block_size;
 
@@ -49,7 +45,7 @@ private:
 
     //utilities
     std::vector<std::mutex> mutex;
-    std::mutex stat_mutex;
+    std::mutex file_mutex;
 public:
     file_cache(std::string cache_path,
         std::string file_identifier,
@@ -59,7 +55,7 @@ public:
         unsigned int block_size = 0
     );
     ~file_cache();
-    bool read_data(char* buffer, size_t offset, size_t read_size);
+    void read_data(char* buffer, size_t offset, size_t read_size);
     //accessor
     void* get_file_info();
     void set_file_info(void* file_info);
@@ -71,7 +67,7 @@ private:
 
     // Functions to create meta and block file
     void create_meta_file();
-    void create_block_file(unsigned int block_id);
+    void create_block_file_if_not(unsigned int block_id);
 
     // Functions to open or close files
     std::string get_meta_file_path();
@@ -85,14 +81,17 @@ private:
     void initial_block_handles();
     void release_block_handles();
 
+    //Get data from the object member variables
+    //The block must be opened before using these functions
     void*& get_block_map(unsigned int block_id);
     void*& get_block_region(unsigned int block_id);
     char*& get_block_ptr(unsigned int block_id);
 
-    block_read_info get_block_read_info(size_t offset, size_t read_size);
-    //Whether the block has been cached, the result is not relavent to 
-    //the status of the physical existance of the block file
+    
     bool block_exists(unsigned int block_id);
+    //Whether the block has been opened in the object.
+    //It is related to the file handle and can return false 
+    //when the file phisically exist
     bool block_opened(unsigned int block_id);
     void set_block_bit(unsigned int block_id, bool bit_value);
     unsigned int get_block_size();
@@ -102,6 +101,9 @@ private:
     //Mutex functions
     void create_mutex();
     std::mutex& get_block_mutex(unsigned int block_id);
+
+    //Random access related
+    bool is_random_read(size_t offset, size_t read_size);
 };
 
 

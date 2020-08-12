@@ -42,6 +42,9 @@
     <ClCompile Include="dokanOperations.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="memoryCache.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="utilities.h">
@@ -69,6 +72,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="dokanOperations.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="memoryCache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

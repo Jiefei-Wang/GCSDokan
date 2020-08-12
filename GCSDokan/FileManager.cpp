@@ -4,6 +4,7 @@
 #include "restAPIs.h"
 #include "utilities.h"
 #include "fileCache.h"
+#include "memoryCache.h"
 #include "globalVariables.h"
 
 
@@ -219,6 +220,13 @@ file_manager_handle get_file_manager_handle(wstring win_path) {
 			&read_file_from_cloud,
 			&manager_handle->linux_full_path);
 	}
+	if (manager_handle->cache_type == CACHE_TYPE::memory) {
+		manager_handle->cache_info = new memory_cache(
+			wstringToString(file_meta.crc32c),
+			file_meta.size,
+			&read_file_from_cloud,
+			&manager_handle->linux_full_path);
+	}
 	return manager_handle;
 }
 
@@ -233,15 +241,24 @@ NTSTATUS get_file_data(file_manager_handle file_manager, void* buffer, size_t of
 	bool success = false;
 	if (file_manager->cache_type == CACHE_TYPE::disk) {
 		file_cache* cache_info = (file_cache*)file_manager->cache_info;
-		//try {
+		try {
 			cache_info->read_data((char*)buffer, offset, length);
 			success = true;
-		//}
-		//catch (std::exception) {
-		//}
+		}
+		catch (std::exception ex) {
+			error_print("%s\n", ex.what());
+		}
 	}
-	else {
-		//TODO: memory cache
+
+	if (file_manager->cache_type == CACHE_TYPE::memory) {
+		memory_cache* cache_info = (memory_cache*)file_manager->cache_info;
+		try {
+			cache_info->read_data((char*)buffer, offset, length);
+			success = true;
+		}
+		catch (std::exception ex) {
+			error_print("%s\n", ex.what());
+		}
 	}
 	if (!success) {
 		return get_file_data_from_cloud(file_manager->win_path, buffer, offset, length);

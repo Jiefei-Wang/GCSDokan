@@ -25,6 +25,8 @@ std::wstring build_path(std::wstring path1, std::wstring path2, WCHAR delimiter 
 
 void debug_print(LPCWSTR format, ...);
 void error_print(LPCWSTR format, ...);
+void debug_print(LPCSTR format, ...);
+void error_print(LPCSTR format, ...);
 std::wstring stringToWstring(const char* utf8Bytes);
 std::string wstringToString(const WCHAR* utf16Bytes);
 std::wstring stringToWstring(std::string utf8Bytes);

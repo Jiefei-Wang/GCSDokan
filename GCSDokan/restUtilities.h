@@ -23,7 +23,7 @@ return func;
 
 #define handle_rest_error(e)\
 auto error = e.what();\
-error_print(L"Error exception:%s\n", stringToWstring(error).c_str());\
+error_print("Error exception:%s\n", error);\
 set_last_error(error);
 
 

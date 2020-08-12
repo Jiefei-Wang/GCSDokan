@@ -6,11 +6,12 @@ using std::string;
 //wstring remote_link = L"genomics-public-data";
 wstring remote_link = L"";// L"bioconductor_test";
 wstring mount_point = L"";//L"R:\\";
+
 wstring cache_root = L"D:\\test";
-size_t update_interval = 60 * 10;
-
 CACHE_TYPE cache_type = CACHE_TYPE::none;
+size_t memory_cache_block_number = 100;
 
+size_t update_interval = 60 * 10;
 short verbose_level = 0;
 
 void set_mount_point(std::wstring path) {
