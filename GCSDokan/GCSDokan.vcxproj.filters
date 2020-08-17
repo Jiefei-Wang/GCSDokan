@@ -24,15 +24,6 @@
     <ClCompile Include="googleAuth.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="restAPIs.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="restUtilities.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="FileManager.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="fileCache.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -45,6 +36,15 @@
     <ClCompile Include="memoryCache.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="cloudFunctions.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="fileManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dokanOptions.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="utilities.h">
@@ -53,16 +53,7 @@
     <ClInclude Include="googleAuth.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="restAPIs.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="restUtilities.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="fileManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="dataTypes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="fileCache.h">
@@ -75,6 +66,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="memoryCache.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="cloudFunctions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dokanOptions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

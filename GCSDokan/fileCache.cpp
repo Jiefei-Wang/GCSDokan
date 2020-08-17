@@ -4,7 +4,11 @@
 #include <boost/interprocess/mapped_region.hpp>
 #include "fileCache.h"
 
-
+#ifdef _DEBUG
+#define DBG_NEW new ( _NORMAL_BLOCK , __FILE__ , __LINE__ )
+#else
+#define DBG_NEW new
+#endif
 
 namespace bf = boost::filesystem;
 namespace bi = boost::interprocess;
@@ -263,7 +267,7 @@ void file_cache::create_meta_file()
 		throw("Cannot open meta file %s", meta_path.c_str());
 	}
 	size_t file_size = compute_meta_file_size(file_identifier, block_number);
-	char* data_buffer = new char[file_size];
+	char* data_buffer = DBG_NEW char[file_size];
 	memset(data_buffer, 0, file_size);
 	get_meta_block_size(data_buffer) = block_size;
 	get_meta_block_number(data_buffer) = block_number;
@@ -332,8 +336,8 @@ char*& file_cache::get_block_ptr(unsigned int block_id)
 void open_file(string path, void*& map_handle, void*& region_handle, char*& ptr) {
 	if (map_handle != nullptr)
 		throw("Oops, something is wrong");
-	map_handle = new bi::file_mapping(path.c_str(), bi::read_write);
-	region_handle = new bi::mapped_region(*(bi::file_mapping*)map_handle, bi::read_write);
+	map_handle = DBG_NEW bi::file_mapping(path.c_str(), bi::read_write);
+	region_handle = DBG_NEW bi::mapped_region(*(bi::file_mapping*)map_handle, bi::read_write);
 	ptr = (char*)((bi::mapped_region*)region_handle)->get_address();
 	if (ptr == nullptr) {
 		throw("fail to map the meta data");
@@ -495,6 +499,10 @@ file_cache::~file_cache() {
 //boost::mutex mutex;
 
 void file_cache::read_data(char* buffer, size_t offset, size_t read_size) {
+	if (offset + read_size > file_size) {
+		throw("Read out-of-bound values");
+	}
+
 	bool random_read = is_random_read(offset, read_size);
 	if (random_read) {
 		try {
@@ -521,7 +529,7 @@ void file_cache::read_data(char* buffer, size_t offset, size_t read_size) {
 		//If the data does not exist but the block has been opened
 		//It means the block is a newly created one, we download its data from the cloud
 		if (!block_exists(target_block)) {
-			size_t cloud_file_offset = target_block * block_size;
+			size_t cloud_file_offset = target_block * (size_t)block_size;
 			size_t cloud_file_len = get_block_expected_size(file_size, block_size, target_block);
 			try {
 				(*data_func)(file_info, get_block_ptr(target_block), cloud_file_offset, cloud_file_len);

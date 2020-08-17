@@ -4,6 +4,12 @@
 #include "stlCache/stlcache.hpp"
 #include "globalVariables.h"
 
+#ifdef _DEBUG
+#define DBG_NEW new ( _NORMAL_BLOCK , __FILE__ , __LINE__ )
+#else
+#define DBG_NEW new
+#endif
+
 using std::string;
 using std::shared_ptr;
 
@@ -21,6 +27,8 @@ using std::shared_ptr;
 unsigned int memory_cache::default_block_size = 1 * 1024 * 1024;
 unsigned int memory_cache::random_access_tolerance_time = 5;
 unsigned int memory_cache::random_access_range_cutoff = default_block_size / 2;
+size_t memory_cache::memory_cache_block_number = 100;
+
 
 std::mutex memory_cache::static_mutex;
 typedef stlcache::cache<string, shared_ptr<char[]>,stlcache::policy_lru> CacheLRU;
@@ -124,8 +132,9 @@ memory_cache::memory_cache(std::string file_identifier, size_t file_size,
 	this->block_number = compute_block_number(file_size, this->block_size);
 	static_mutex.lock();
 	if (cache == nullptr) {
-		cache = new CacheLRU(memory_cache_block_number);
+		cache = DBG_NEW CacheLRU(memory_cache_block_number);
 	}
+	
 	static_mutex.unlock();
 }
 
@@ -154,8 +163,8 @@ bool memory_cache::read_data(char* buffer, size_t offset, size_t read_size) {
 
 		//If the data does not exist, we download it from the cloud
 		if (!block_exists(block_key)) {
-			shared_ptr<char[]> block_ptr(new char[block_size]);
-			size_t cloud_file_offset = target_block * block_size;
+			shared_ptr<char[]> block_ptr(DBG_NEW char[block_size]);
+			size_t cloud_file_offset = target_block * (size_t)block_size;
 			size_t cloud_file_len = get_block_expected_size(file_size, block_size, target_block);
 			try {
 				(*data_func)(file_info, block_ptr.get(), cloud_file_offset, cloud_file_len);

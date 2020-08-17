@@ -2,10 +2,13 @@
 #include "dokanOperations.h"
 #include "fileManager.h"
 #include "utilities.h"
-#include "dataTypes.h"
 
 using std::wstring;
 
+struct file_private_info {
+	size_t event_id = 0;
+	file_manager_handle manager_handle = nullptr;
+};
 
 static int event_count = 0;
 
@@ -125,7 +128,7 @@ cloud_create_file(LPCWSTR file_name, PDOKAN_IO_SECURITY_CONTEXT security_context
 	ACCESS_MASK generic_desired_access;
 
 
-	file_private_info* cache_info = new file_private_info();
+	file_private_info* cache_info = DBG_NEW file_private_info();
 	cache_info->event_id = event_count++;
 	dokan_file_info->Context= (ULONG64)cache_info;
 	DokanMapKernelToUserCreateFileFlags(
@@ -217,6 +220,7 @@ void DOKAN_CALLBACK cloud_close_file(LPCWSTR file_name,
 	file_private_info* private_info = (file_private_info*)dokan_file_info->Context;
 	debug_print(L"### CloseFile : %llu\n", private_info->event_id);
 	debug_print(L"file name: %s\n", file_name);
+	delete private_info;
 }
 
 
@@ -225,9 +229,7 @@ void DOKAN_CALLBACK cloud_cleanup(LPCWSTR file_name,
 	file_private_info* private_info = (file_private_info*)dokan_file_info->Context;
 	debug_print(L"### Cleanup : %llu\n", private_info->event_id);
 	debug_print(L"file name: %s\n", file_name);
-	if (private_info->manager_handle != nullptr) {
-		release_file_manager_handle(private_info->manager_handle);
-	}
+	
 }
 
 
@@ -261,6 +263,10 @@ NTSTATUS DOKAN_CALLBACK cloud_read_file(LPCWSTR file_name, LPVOID buffer,
 	}
 	//auto handle = get_file_manager_handle(file_name);
 	NTSTATUS status = get_file_data(private_info->manager_handle, buffer, offset, true_read_len);
+	if (private_info->manager_handle != nullptr) {
+		release_file_manager_handle(private_info->manager_handle);
+		private_info->manager_handle = nullptr;
+	}
 	//release_file_manager_handle(handle);
 	debug_print(L"final read size:%llu\n", true_read_len);
 	return status;
@@ -313,9 +319,9 @@ NTSTATUS DOKAN_CALLBACK cloud_get_file_information(
 		handleFileInformation->dwFileAttributes = FILE_ATTRIBUTE_READONLY;
 		unsigned long long size = meta.size;
 		LlongToDwLowHigh(size, handleFileInformation->nFileSizeLow, handleFileInformation->nFileSizeHigh);
-		handleFileInformation->ftCreationTime = meta.time_created;
-		handleFileInformation->ftLastWriteTime = meta.time_updated;
-		handleFileInformation->ftLastAccessTime = meta.time_updated;
+		handleFileInformation->ftCreationTime = time_point_to_file_time(meta.time_created);
+		handleFileInformation->ftLastWriteTime = time_point_to_file_time(meta.time_updated);
+		handleFileInformation->ftLastAccessTime = time_point_to_file_time(meta.time_updated);
 
 	}
 	return STATUS_SUCCESS;
@@ -348,9 +354,9 @@ cloud_find_files(LPCWSTR file_name,
 		unsigned long long size = i.second.size;
 		LlongToDwLowHigh(size, findData.nFileSizeLow, findData.nFileSizeHigh);
 		findData.dwFileAttributes = FILE_ATTRIBUTE_READONLY;
-		findData.ftCreationTime = i.second.time_created;
-		findData.ftLastWriteTime = i.second.time_updated;
-		findData.ftLastAccessTime = i.second.time_updated;
+		findData.ftCreationTime = time_point_to_file_time(i.second.time_created);
+		findData.ftLastWriteTime = time_point_to_file_time(i.second.time_updated);
+		findData.ftLastAccessTime = time_point_to_file_time(i.second.time_updated);
 		wcscpy_s(findData.cFileName, DIRECTORY_MAX_PATH, i.second.local_name.c_str());
 		fill_find_data(&findData, dokan_file_info);
 	}

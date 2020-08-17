@@ -5,8 +5,11 @@
 #include <string>
 #include <array>
 #include <vector>
+#include <boost/filesystem.hpp>
 #include "utilities.h"
 #include "globalVariables.h"
+
+
 
 using std::string;
 using std::wstring;
@@ -74,12 +77,66 @@ wstring to_parent_folder(wstring path) {
     wstring parent_path = path.substr(0, path.find_last_of(L"\\/"));
     return parent_path;
 }
+string to_parent_folder(string path) {
+    string parent_path = path.substr(0, path.find_last_of("\\/"));
+    return parent_path;
+}
 
 std::wstring get_file_name_in_path(std::wstring path) {
     return path.substr(path.find_last_of(L"\\/") + 1);
 }
 
+
+string get_tailing_string(string source, size_t offset) {
+    if (offset < source.length()) {
+        return source.substr(offset);
+    }
+    else {
+        return "";
+    }
+}
+string remove_tailing_slash(string path) {
+    return wstringToString(remove_tailing_slash(stringToWstring(path)));
+}
+wstring remove_tailing_slash(wstring path) {
+    while (path.length() != 0 && path.at(path.length() - 1) == L'/') {
+        path = path.substr(0, path.length() - 1);
+    }
+    return path;
+}
+
+decomposed_path get_path_info(std::wstring wide_linux_path) {
+    string linux_path = wstringToString(wide_linux_path);
+    vector<string> full_path_vec;
+    for (auto& part : boost::filesystem::path(linux_path)) {
+        if (part.string() != ".")
+            full_path_vec.push_back(part.string());
+    }
+    string bucket = full_path_vec.at(0);
+    string name = "";
+    if (full_path_vec.size() > 1) {
+        name = full_path_vec.at(full_path_vec.size() - 1);
+    }
+    string path = get_tailing_string(linux_path, bucket.length() + 1);
+    string parent_path = "";
+    for (int i = 1; i < full_path_vec.size() - 1; i++) {
+        parent_path = build_path(parent_path, full_path_vec[i]);
+    }
+    return decomposed_path{ bucket, name, path, parent_path, full_path_vec };
+}
+
+std::string build_path(std::string path1, std::string path2, char delimiter) {
+    wstring result = build_path(stringToWstring(path1), stringToWstring(path2), (WCHAR)delimiter);
+    return wstringToString(result);
+}
+
 std::wstring build_path(std::wstring path1, std::wstring path2, WCHAR delimiter) {
+    if (path1.length() == 0) {
+        return path2;
+    }
+    if (path2.length() == 0) {
+        return path1;
+    }
     if (path1.at(path1.length() - 1) == delimiter &&
         path2.at(0) == delimiter) {
         path2 = path2.erase(0);
@@ -97,58 +154,45 @@ std::wstring build_path(std::wstring path1, std::wstring path2, WCHAR delimiter)
 
 
 
+static char buffer[1024 * 1024];
 void debug_print(LPCWSTR format, ...) {
     if (verbose_level>0) {
         va_list args;
         int len;
-        wchar_t* buffer;
         va_start(args, format);
         len = _vscwprintf(format, args) + 1;
-        buffer = (wchar_t*)_malloca(len * sizeof(WCHAR));
-        vswprintf_s(buffer, len, format, args);
-        wprintf(buffer);
-        _freea(buffer);
+        vswprintf_s((WCHAR*)buffer, len, format, args);
+        fwprintf(stdout, (WCHAR*)buffer);
     }
 }
 
 void error_print(LPCWSTR format, ...) {
         va_list args;
         int len;
-        wchar_t* buffer;
         va_start(args, format);
         len = _vscwprintf(format, args) + 1;
-        buffer = (wchar_t*)_malloca(len * sizeof(WCHAR));
-        vswprintf_s(buffer, len, format, args);
-        wprintf(buffer);
-        _freea(buffer);
+        vswprintf_s((WCHAR*)buffer, len, format, args);
+        fwprintf(stderr, (WCHAR*)buffer);
 }
-
-
 
 void debug_print(LPCSTR format, ...) {
     if (verbose_level > 0) {
         va_list args;
         int len;
-        char* buffer;
         va_start(args, format);
         len = _vscprintf(format, args) + 1;
-        buffer = (char*)_malloca(len * sizeof(char));
         vsprintf_s(buffer, len, format, args);
         printf(buffer);
-        _freea(buffer);
     }
 }
 
 void error_print(LPCSTR format, ...) {
         va_list args;
         int len;
-        char* buffer;
         va_start(args, format);
         len = _vscprintf(format, args) + 1;
-        buffer = (char*)_malloca(len * sizeof(char));
         vsprintf_s(buffer, len, format, args);
         printf(buffer);
-        _freea(buffer);
 }
 
 
@@ -188,30 +232,12 @@ std::string wstringToString(const WCHAR* utf16Bytes)
     return convert.to_bytes(utf16Bytes);
 }
 
-
-#include <regex>
-FILETIME json_time_to_file_time(wstring time)
-{
-    using namespace std;
-    string time_stamp = wstringToString(time.c_str());
-    regex re("(\\d+)-(\\d+)-(\\d+)T(\\d+):(\\d+):(\\d+).(\\d+)");
-    smatch match;
-    if (regex_search(time_stamp, match, re) == true && match.size() == 8) {
-        FILETIME ft;
-        SYSTEMTIME st;
-        st.wYear = stoi(match.str(1));
-        st.wMonth = stoi(match.str(2));
-        st.wDay = stoi(match.str(3));
-        st.wHour = stoi(match.str(4));
-        st.wMinute = stoi(match.str(5));
-        st.wSecond = stoi(match.str(6));
-        st.wMilliseconds = stoi(match.str(7));
-        bool res = SystemTimeToFileTime(&st, &ft);
-        if (res) {
-            return ft;
-        }
-    }
-    return FILETIME{0,0};
+FILETIME time_point_to_file_time(std::chrono::system_clock::time_point time) {
+    FILETIME fileTime = { 0 };
+    long long timePointTmp = std::chrono::duration_cast<std::chrono::microseconds>(time.time_since_epoch()).count() * 10 + 116444736000000000;
+    fileTime.dwLowDateTime = (unsigned long)timePointTmp;
+    fileTime.dwHighDateTime = timePointTmp >> 32;
+    return fileTime;
 }
 
 

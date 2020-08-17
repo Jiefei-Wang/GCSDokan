@@ -1,21 +1,29 @@
 #include <chrono>
 #include <map>
 #include "fileManager.h"
-#include "restAPIs.h"
+#include "cloudFunctions.h"
 #include "utilities.h"
 #include "fileCache.h"
 #include "memoryCache.h"
-#include "globalVariables.h"
-
 
 using std::wstring;
+
+#define EXIST_FOLDER(meta) (meta.file_meta_vector.size()!=0 || meta.folder_names.size()!=0)
+
 //Key: full remote path(bucket + path)
-std::map<wstring, REST_result_holder> result_holder;
+struct cloud_info_holder {
+	std::chrono::system_clock::time_point query_time;
+	bool exist = false;
+	folder_meta_info folder_meta;
+};
 
-#define EXIST_FOLDER(meta) (meta.file_meta_vector.size()!=0 || meta.folder_names.size()!=0 || meta.local_name==L"/")
 
-//minumum number of random access which will turn off the caching.
-#define randome_access_tolerance 5
+static CACHE_TYPE cache_type = CACHE_TYPE::memory;
+static wstring cache_root;
+static wstring remote_link;
+static size_t refresh_interval = 60;
+
+std::map<wstring, cloud_info_holder> cloud_info_cache;
 
 
 folder_meta_info list_files_internal(wstring linux_full_path)
@@ -27,78 +35,119 @@ bool get_file_data_internal(wstring linux_full_path, void* buffer, size_t offset
 	return gcs_read_file(linux_full_path, buffer, offset, length);
 }
 
+// ********************accessor functions********************
+void set_remote_link(std::wstring link) {
+	wstring header = L"gs://";
+	if (link.rfind(header.c_str(), 0) == 0) {
+		link = link.substr(header.length());
+	}
+	remote_link = remove_tailing_slash(link);
+}
+void set_cache_root(std::wstring path)
+{
+	cache_root = remove_tailing_slash(path);
+}
+void set_cache_type(CACHE_TYPE type) {
+	cache_type = type;
+}
+void set_refresh_interval(size_t time) {
+	refresh_interval = time;
+}
+
+void set_mount_point(std::string path) {
+	set_mount_point(stringToWstring(path));
+}
+void set_remote_link(std::string link) {
+	set_remote_link(stringToWstring(link));
+}
+void set_cache_root(std::string path) {
+	set_cache_root(stringToWstring(path));
+}
+std::wstring get_remote_link() {
+	return remote_link;
+}
+std::wstring get_cache_root() {
+	return cache_root;
+}
+CACHE_TYPE get_cache_type() {
+	return cache_type;
+}
+
+size_t get_refresh_interval() {
+	return refresh_interval;
+}
+
 
 // ********************Derived function********************
-void update_map(wstring key, REST_result_holder value) {
-	if (result_holder.find(key) != result_holder.end())
-		result_holder.insert(std::pair<wstring, REST_result_holder>(key, value));
+static void update_map(wstring key, cloud_info_holder value) {
+	if (cloud_info_cache.find(key) != cloud_info_cache.end())
+		cloud_info_cache.insert(std::pair<wstring, cloud_info_holder>(key, value));
 	else
-		result_holder[key] = value;
+		cloud_info_cache[key] = value;
 }
 #define key_in_map(my_map, key) (my_map.find(key)!= my_map.end())
 
-bool key_cached(wstring linux_full_path) {
-	return key_in_map(result_holder, linux_full_path);
+static bool key_cached(wstring linux_full_path) {
+	return key_in_map(cloud_info_cache, linux_full_path);
 }
 
-bool exist_folder_in_map(wstring linux_full_path) {
+static bool exist_folder_in_map(wstring linux_full_path) {
 	return key_cached(linux_full_path);
 }
 
-bool exist_folder_in_cloud(wstring linux_full_path) {
+static bool exist_folder_in_cloud(wstring linux_full_path) {
 	if (!exist_folder_in_map(linux_full_path)) {
 		throw("Folder <%s> is not cached!", wstringToString(linux_full_path.c_str()).c_str());
 	}
-	return result_holder[linux_full_path].exist;
+	return cloud_info_cache[linux_full_path].exist;
 }
-bool exist_folder_name_in_parent(wstring linux_full_path) {
+static bool exist_folder_name_in_parent(wstring linux_full_path) {
 	wstring folder_name = get_file_name_in_path(linux_full_path);
 	wstring parent_path = to_parent_folder(linux_full_path);
 	if (!exist_folder_in_map(parent_path)) {
 		throw("Folder <%s> is not cached!", wstringToString(parent_path.c_str()).c_str());
 	}
-	std::vector<wstring>& folder_names = result_holder[parent_path].folder_meta.folder_names;
+	std::vector<wstring>& folder_names = cloud_info_cache[parent_path].folder_meta.folder_names;
 	return std::find(folder_names.begin(), folder_names.end(), folder_name) != folder_names.end();
 }
 
-bool exist_file_in_cloud(wstring linux_full_path) {
+static bool exist_file_in_cloud(wstring linux_full_path) {
 	wstring file_name = get_file_name_in_path(linux_full_path);
 	wstring parent_path = to_parent_folder(linux_full_path);
 	if (!exist_folder_in_map(parent_path)) {
 		throw("Folder <%s> is not cached!", wstringToString(parent_path.c_str()).c_str());
 	}
-	return key_in_map(result_holder[parent_path].folder_meta.file_meta_vector, file_name);
+	return key_in_map(cloud_info_cache[parent_path].folder_meta.file_meta_vector, file_name);
 
 }
 
-bool is_time_outdated(std::chrono::system_clock::time_point query_time) {
+static bool is_time_outdated(std::chrono::system_clock::time_point query_time) {
 	std::chrono::duration<double> time_diff = std::chrono::system_clock::now() - query_time;
-	return time_diff.count() > update_interval;
+	return time_diff.count() > get_refresh_interval();
 }
-bool is_folder_outdated(wstring linux_full_path) {
+static bool is_folder_outdated(wstring linux_full_path) {
 	return !exist_folder_in_map(linux_full_path) ||
-		is_time_outdated(result_holder[linux_full_path].query_time);
+		is_time_outdated(cloud_info_cache[linux_full_path].query_time);
 }
 
-bool is_file_outdated(wstring linux_full_path) {
+static bool is_file_outdated(wstring linux_full_path) {
 	wstring parent_path = to_parent_folder(linux_full_path);
 	return is_folder_outdated(parent_path);
 }
 
-folder_meta_info get_folder_meta_internal(wstring linux_full_path) {
+static folder_meta_info get_folder_meta_internal(wstring linux_full_path) {
 	if (exist_folder_in_map(linux_full_path)) {
-		return result_holder[linux_full_path].folder_meta;
+		return cloud_info_cache[linux_full_path].folder_meta;
 	}
 	else {
 		return folder_meta_info{};
 	}
 }
 
-file_meta_info get_file_meta_internal(wstring linux_full_path) {
+static file_meta_info get_file_meta_internal(wstring linux_full_path) {
 	wstring file_name = get_file_name_in_path(linux_full_path);
 	wstring parent_path = to_parent_folder(linux_full_path);
-	if (exist_folder_in_map(parent_path) &&
-		exist_file_in_cloud(linux_full_path)) {
+	if (exist_file_in_cloud(linux_full_path)) {
 		return get_folder_meta_internal(parent_path).file_meta_vector.at(file_name);
 	}
 	else {
@@ -107,15 +156,15 @@ file_meta_info get_file_meta_internal(wstring linux_full_path) {
 }
 
 
-void add_folder_to_map(wstring linux_full_path, folder_meta_info info) {
-	REST_result_holder holder;
-	holder.exist = EXIST_FOLDER(info);
+static void add_folder_to_map(wstring linux_full_path, folder_meta_info info) {
+	cloud_info_holder holder;
+	holder.exist = EXIST_FOLDER(info)|| linux_full_path == get_remote_link();
 	holder.folder_meta = info;
 	holder.query_time = std::chrono::system_clock::now();
 	update_map(linux_full_path, holder);
 }
 
-void update_folder_info(wstring linux_full_path) {
+static void update_folder_info(wstring linux_full_path) {
 	if (!exist_folder_in_map(linux_full_path) ||
 		is_folder_outdated(linux_full_path)) {
 		folder_meta_info info = list_files_internal(linux_full_path);
@@ -123,8 +172,8 @@ void update_folder_info(wstring linux_full_path) {
 	}
 }
 
-void update_info(wstring linux_full_path) {
-	if (linux_full_path == remote_link) {
+static void update_info(wstring linux_full_path) {
+	if (linux_full_path == get_remote_link()) {
 		update_folder_info(linux_full_path);
 		return;
 	}
@@ -132,26 +181,28 @@ void update_info(wstring linux_full_path) {
 	// If we identify the path as a folder then update the folder
 	// Otherwise do nothing for we have all the information in its parent folder
 	wstring parent_path = to_parent_folder(linux_full_path);
-	update_info(parent_path);
+	update_folder_info(parent_path);
 
 	if (exist_folder_name_in_parent(linux_full_path)) {
 		update_folder_info(linux_full_path);
 	}
 	else {
+		//We only add a placeholder here to indicate we have queired it
 		folder_meta_info info;
-		info.local_full_path = linux_full_path;
-		info.local_name = get_file_name_in_path(linux_full_path);
 		add_folder_to_map(linux_full_path, info);
 	}
 }
 
-
-
+/*
+=================================================================
+Exported functions
+=================================================================
+*/
 folder_meta_info get_folder_meta(wstring win_path)
 {
 	wstring linux_path = to_linux_slash(win_path);
 	if (linux_path == L"/") linux_path = L"";
-	wstring linux_full_path = build_path(remote_link, linux_path);
+	wstring linux_full_path = build_path(get_remote_link(), linux_path);
 	update_info(linux_full_path);
 	return get_folder_meta_internal(linux_full_path);
 }
@@ -160,7 +211,7 @@ file_meta_info get_file_meta(wstring win_path)
 {
 	wstring linux_path = to_linux_slash(win_path);
 	if (linux_path == L"/") linux_path = L"";
-	wstring linux_full_path = build_path(remote_link, linux_path);
+	wstring linux_full_path = build_path(get_remote_link(), linux_path);
 	update_info(linux_full_path);
 	return get_file_meta_internal(linux_full_path);
 }
@@ -175,7 +226,7 @@ bool exist_file(wstring win_path)
 {
 	wstring linux_path = to_linux_slash(win_path);
 	if (linux_path == L"/") linux_path = L"";
-	wstring linux_full_path = build_path(remote_link, linux_path);
+	wstring linux_full_path = build_path(get_remote_link(), linux_path);
 	update_info(linux_full_path);
 	return exist_file_in_cloud(linux_full_path);
 }
@@ -184,7 +235,7 @@ bool exist_folder(wstring win_path)
 {
 	wstring linux_path = to_linux_slash(win_path);
 	if (linux_path == L"/") return true;
-	wstring linux_full_path = build_path(remote_link, linux_path);
+	wstring linux_full_path = build_path(get_remote_link(), linux_path);
 	update_info(linux_full_path);
 	return exist_folder_in_cloud(linux_full_path);
 }
@@ -207,21 +258,21 @@ void read_file_from_cloud(void* linux_full_path, void* buffer, size_t offset, si
 
 
 file_manager_handle get_file_manager_handle(wstring win_path) {
-	file_manager_handle manager_handle = new file_manager_handle_struct{};
-	manager_handle->cache_type = cache_type;
+	file_manager_handle manager_handle = DBG_NEW file_manager_handle_struct{};
+	manager_handle->cache_type = get_cache_type();
 	manager_handle->win_path = win_path;
 	file_meta_info file_meta = get_file_meta(win_path);
 	manager_handle->linux_full_path = file_meta.remote_full_path;
 	if (manager_handle->cache_type == CACHE_TYPE::disk) {
-		manager_handle->cache_info = new file_cache(
-			wstringToString(build_path(cache_root, win_path, L'\\')),
+		manager_handle->cache_info = DBG_NEW file_cache(
+			wstringToString(build_path(get_cache_root(), win_path, L'\\')),
 			wstringToString(file_meta.crc32c),
 			file_meta.size,
 			&read_file_from_cloud,
 			&manager_handle->linux_full_path);
 	}
 	if (manager_handle->cache_type == CACHE_TYPE::memory) {
-		manager_handle->cache_info = new memory_cache(
+		manager_handle->cache_info = DBG_NEW memory_cache(
 			wstringToString(file_meta.crc32c),
 			file_meta.size,
 			&read_file_from_cloud,
@@ -230,8 +281,14 @@ file_manager_handle get_file_manager_handle(wstring win_path) {
 	return manager_handle;
 }
 
-void release_file_manager_handle(file_manager_handle file_manager) {
-	delete file_manager;
+void release_file_manager_handle(file_manager_handle manager_handle) {
+	if (manager_handle->cache_type == CACHE_TYPE::disk) {
+		delete (file_cache*)manager_handle->cache_info;
+	}
+	if (manager_handle->cache_type == CACHE_TYPE::memory) {
+		delete (memory_cache*)manager_handle->cache_info;
+	}
+	delete manager_handle;
 }
 
 

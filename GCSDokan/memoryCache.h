@@ -4,14 +4,14 @@
 
 class memory_cache {
 	typedef void (*read_data_func)(void* file_info, void* buffer, size_t offset, size_t length);
-private:
-	
+
+public:
 	//Default values
 	static unsigned int random_access_range_cutoff;
 	static unsigned int random_access_tolerance_time;
 	static unsigned int default_block_size;
-
-
+	static size_t memory_cache_block_number;
+private:
 	//function which is used to read data
 	void* file_info;
 	read_data_func data_func;

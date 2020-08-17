@@ -1,21 +1,21 @@
 #pragma once
 #include <string>
+#include <google/cloud/storage/client.h>
+
+void auto_auth();
+bool auth_by_file(std::string path);
+bool auth_by_google_default();
+bool auth_anonymous();
+
+void set_billing_project(std::string);
+std::string get_billing_project();
+
+void set_credentials_path(std::string);
+std::string get_credentials_path();
 
 
-bool auto_auth();
-bool gcloud_auth(std::wstring email);
-bool json_auth(std::wstring path);
-
-bool refresh_token();
-bool is_token_outdated();
-
-std::wstring& get_token();
-void clear_token();
-
-std::wstring& get_requester_pay();
-void set_requester_pay(std::wstring);
-
-
+google::cloud::storage::v1::Client& get_client();
+google::cloud::storage::v1::Client& refresh_client();
 
 
 
