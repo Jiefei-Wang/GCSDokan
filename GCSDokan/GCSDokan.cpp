@@ -33,27 +33,29 @@ static void show_usage() {
 	fprintf(stderr, "GCSDokan.exe - Mount a Google Cloud Storage bucket to a virtual driver or folder.\n"
 		"Usage: GCSDokan remote mountPoint [arguments]\n"
 		"Arguments:\n"
-		"  -r, --refresh <time>    The refresh rate of the virtual files in seconds. The changes in the bucket\n"
-		"                          will not be visible until the local file information is expired.\n"
-		"  -nb, --noBlock          Running GCSDokan in another process.\n"
-		"  -v, --verbose           verbose mode.\n"
-		"  -h, --help              show this help page.\n"
-		"  --version               show the version.\n"
+		"  -c, --credentials <path> Use a service account to authenticate with google.\n"
+		"  -b, --billing <project>  Set the billing project.\n"
+		"  -r, --refresh <time>     The refresh rate of the virtual files in seconds(default 60s). The changes \n"
+		"                           in the bucket will not be visible until the local information is expired.\n"
+		"  -nb, --noBlock           Running GCSDokan in the background.\n"
+		"  -v, --verbose            verbose mode.\n"
+		"  -h, --help               show this help page.\n"
+		"  --version                show the version.\n"
 		"\n"
 		"Cache options(Default: memory cache):\n"
-		"  -nc, --noCache          Do not use cache.\n"
+		"  -nc, --noCache           Do not use cache.\n"
 		"  -dc, --diskCache [cache directory] \n"
-		"                          Use disk cache, the argument cache directory detemines\n"
-		"                          the location of the cache file. The default is a temporary directory.\n"
+		"                           Use disk cache, the argument cache directory detemines\n"
+		"                           the location of the cache file. The default is a temporary directory.\n"
 		"  -mc, --memoryCache [cache size]\n"
-		"                          Use memory cache, the argument cache size limits the maximum\n"
-		"                          amount of the memory usage in MB. The default is 100MB.\n"
+		"                           Use memory cache, the argument cache size limits the maximum\n"
+		"                           amount of the memory usage in MB. The default is 100MB.\n"
 		"\n"
 		"Examples:\n"
-		" GCSDokan genomics-public-data Z\n"
-		" GCSDokan gs:://genomics-public-data/clinvar Z\n"
+		"  GCSDokan genomics-public-data Z\n"
+		"  GCSDokan gs:://genomics-public-data/clinvar Z -v -mc 200\n"
 		"\n"
-		"Unmount the drive with CTRL + C in the console or alternatively via \"dokanctl /u MountPoint\".\n");
+		"Unmount the drive with \"dokanctl /u MountPoint\" in the Dokan directory.\n");
 	// clang-format on
 }
 
@@ -124,6 +126,18 @@ static int process_arguments(int argc, char* argv[]) {
 			}
 		}
 		boost::to_lower(command_str);
+		//credentials file
+		if (match_argument(command_str, "-c", "--credentials")) {
+			CHECK_CMD_ARG(command, argc);
+			set_credentials_path(argv[command]);
+			continue;
+		}
+		//billing project
+		if (match_argument(command_str, "-b", "--billing")) {
+			CHECK_CMD_ARG(command, argc);
+			set_billing_project(argv[command]);
+			continue;
+		}
 		//refresh rate
 		if (match_argument(command_str, "-r", "--refresh")) {
 			CHECK_CMD_ARG(command, argc);
@@ -195,6 +209,7 @@ static int process_arguments(int argc, char* argv[]) {
 			set_cache_type(CACHE_TYPE::none);
 			continue;
 		}
+		
 		error_print("unknown command: %s\n", argv[command]);
 		return PROCESS_FAILURE;
 	}
@@ -235,6 +250,10 @@ int main(int argc, char* argv[])
 	}
 	//Authenticate with google 
 	auto_auth();
+
+	google::cloud::storage::v1::oauth2::Credentials& credentials = get_credentials();
+	debug_print("Credential email:%s\n", credentials.AccountEmail().c_str());
+
 	//Run dokan program
 	result = run_dokan();
 	if (result != 0) {

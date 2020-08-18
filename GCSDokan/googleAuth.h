@@ -17,6 +17,6 @@ std::string get_credentials_path();
 google::cloud::storage::v1::Client& get_client();
 google::cloud::storage::v1::Client& refresh_client();
 
-
+google::cloud::storage::v1::oauth2::Credentials& get_credentials();
 
 

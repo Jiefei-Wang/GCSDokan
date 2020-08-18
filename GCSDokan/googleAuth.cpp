@@ -16,12 +16,15 @@ gcs::Client* client = nullptr;
 void auto_auth() {
 	bool success = false;
 	if (credentials_path.length() != 0) {
+		debug_print("Try to authenticate via json file.\n");
 		success = auth_by_file(credentials_path);
 	}
 	if (!success) {
+		debug_print("Try to authenticate via default google setting.\n");
 		success = auth_by_google_default();
 	}
 	if (!success) {
+		debug_print("Use anonymous credentials.\n");
 		auth_anonymous();
 	}
 }
@@ -91,6 +94,11 @@ gcs::Client& refresh_client() {
 	}
 	client = DBG_NEW gcs::Client(credentials);
 	return *client;
+}
+
+google::cloud::storage::v1::oauth2::Credentials& get_credentials()
+{
+	return *credentials;
 }
 
 
