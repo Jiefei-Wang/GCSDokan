@@ -65,3 +65,5 @@ For other options, please refer to the program help page `GCSDokan -h`.
 
 * Allow killing GCSDokan via GCSDokan
 
+* Handle placeholder file
+
