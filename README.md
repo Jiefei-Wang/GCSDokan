@@ -7,10 +7,10 @@ This library can mount a Google Cloud Storage bucket to your local file system o
 * Dokan driver and library([download](https://dokan-dev.github.io/))
 * stlcache([download](https://github.com/akashihi/stlcache))
 * Boost filesystem([download](https://www.boost.org/))
-* Google Cloud CPP([download](https://github.com/googleapis/google-cloud-cpp))
+* Google Cloud CPP (version > 1.16.0)([download](https://github.com/googleapis/google-cloud-cpp))
 * Visual Studio
 
-If you are using [vcpkg](vcpkg) to manage your libraries. The boost filesystem and Google Cloud CPP can be automatically linked by vcpkg when compiling GCSDokan.
+If you are using [vcpkg](vcpkg) to manage your libraries. The boost filesystem and Google Cloud CPP can be automatically linked by vcpkg when compiling GCSDokan. Note that the you must install the HEAD version of Google Cloud CPP in vcpkg since the release version does not fulfull the version requirement of GCsDokan.
 
 For building the program, the library stlcache and Dokan can be found via the environment variable `stlcache_root` and `dokan_root` respectively. For example, these environments on my machine are `C:\dev\library\include` and `C:\Program Files\Dokan\DokanLibrary-1.4.0`. If you do not use vcpkg, you have to manually add the pathes of the boost library and Google Cloud CPP into the project.
 
