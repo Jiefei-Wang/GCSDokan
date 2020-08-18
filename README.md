@@ -55,8 +55,13 @@ For other options, please refer to the program help page `GCSDokan -h`.
 
 ## future plan
 
+* Binary release for x64
+
 * Support the file writting.
 
 * Showing the correct bucket size.
 
 * Allow Dokan to kill GCSDokan under user mode.
+
+* Allow killing GCSDokan via GCSDokan
+
