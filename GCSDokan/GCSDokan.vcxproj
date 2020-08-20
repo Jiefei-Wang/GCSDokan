@@ -263,6 +263,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="daemon.cpp" />
     <ClCompile Include="dokanOperations.cpp" />
     <ClCompile Include="dokanOptions.cpp" />
     <ClCompile Include="fileCache.cpp" />
@@ -275,6 +276,7 @@
     <ClCompile Include="utilities.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="daemon.h" />
     <ClInclude Include="dokanOperations.h" />
     <ClInclude Include="dokanOptions.h" />
     <ClInclude Include="fileCache.h" />

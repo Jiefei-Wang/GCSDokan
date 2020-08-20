@@ -61,9 +61,5 @@ For other options, please refer to the program help page `GCSDokan -h`.
 
 * Showing the correct bucket size.
 
-* Allow Dokan to kill GCSDokan under user mode.
-
-* Allow killing GCSDokan via GCSDokan
-
 * Handle placeholder file
 

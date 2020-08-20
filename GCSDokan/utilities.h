@@ -19,10 +19,6 @@ struct decomposed_path {
     std::vector<std::string> full_path_vec;
 };
 
-//CMD related function
-std::string execute_command(const char* cmd);
-bool is_command_exist(const char* command);
-
 
 std::wstring to_linux_slash(std::wstring path);
 std::wstring  to_win_slash(std::wstring path);
@@ -34,6 +30,14 @@ std::wstring remove_tailing_slash(std::wstring path);
 std::string remove_tailing_slash(std::string path);
 decomposed_path get_path_info(std::wstring win_path);
 
+
+template<class T1, class T2>
+T1 remove_tailing_symbol(T1 str, T2 symbol) {
+    while (str.length() != 0 && str.at(str.length() - 1) == symbol) {
+        str = str.substr(0, str.length() - 1);
+    }
+    return str;
+}
 
 /*
 Examples:

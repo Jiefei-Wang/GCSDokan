@@ -7,6 +7,7 @@
 #include "globalVariables.h"
 #include "memoryCache.h"
 #include "utilities.h"
+#include "daemon.h"
 
 using std::string;
 using std::wstring;
@@ -38,9 +39,11 @@ static void show_usage() {
 		"  -r, --refresh <time>     The refresh rate of the virtual files in seconds(default 60s). The changes \n"
 		"                           in the bucket will not be visible until the local information is expired.\n"
 		"  -nb, --noBlock           Running GCSDokan in the background.\n"
-		"  -v, --verbose            verbose mode.\n"
-		"  -h, --help               show this help page.\n"
-		"  --version                show the version.\n"
+		"  -l, --list               List all mounted bucket"
+		"  -u, --unmount <path>     Unmount a GCSDokan mount point <path>\n"
+		"  -v, --verbose            Verbose mode.\n"
+		"  -h, --help               Show this help page.\n"
+		"  --version                Show the version.\n"
 		"\n"
 		"Cache options(Default: memory cache):\n"
 		"  -nc, --noCache           Do not use cache.\n"
@@ -55,7 +58,7 @@ static void show_usage() {
 		"  GCSDokan genomics-public-data Z\n"
 		"  GCSDokan gs:://genomics-public-data/clinvar Z -v -mc 200\n"
 		"\n"
-		"Unmount the drive with \"dokanctl /u MountPoint\" in the Dokan directory.\n");
+		"Unmount the drive with \"GCSDokan -u MountPoint\" or Ctrl + C if the program is running in the foreground.\n");
 	// clang-format on
 }
 
@@ -101,6 +104,8 @@ static int process_arguments(int argc, char* argv[]) {
 		show_usage();
 		return QUIT_PROGRAM;
 	}
+
+	bool temporary_cache_path = false;
 	int count = 0;
 	for (int command = 1; command < argc; command++) {
 		string command_str(argv[command]);
@@ -177,15 +182,7 @@ static int process_arguments(int argc, char* argv[]) {
 				continue;
 			}
 			else {
-				//TODO: get a temporary cache path
-				char buffer[DIRECTORY_MAX_PATH];
-				size_t len = GetTempPathA(DIRECTORY_MAX_PATH, buffer);
-				if (len == 0 || len > DIRECTORY_MAX_PATH) {
-					error_print("Fail to get a temporary path\n");
-					return PROCESS_FAILURE;
-				}
-				set_cache_root(stringToWstring(buffer) + L"GCSDokan");
-				set_cache_type(CACHE_TYPE::disk);
+				temporary_cache_path = true;
 				continue;
 			}
 		}
@@ -209,10 +206,37 @@ static int process_arguments(int argc, char* argv[]) {
 			set_cache_type(CACHE_TYPE::none);
 			continue;
 		}
-		
+		if (match_argument(command_str, "-l", "--list")) {
+			if (!list_instances()) {
+				return PROCESS_FAILURE;
+			}
+			else {
+				return QUIT_PROGRAM;
+			}
+		}
+		if (match_argument(command_str, "-u", "--unmount")) {
+			CHECK_CMD_ARG(command, argc);
+			set_mount_point(argv[command]);
+			kill_process();
+			return QUIT_PROGRAM;
+		}
 		error_print("unknown command: %s\n", argv[command]);
 		return PROCESS_FAILURE;
 	}
+
+	//If the user uses disk cache but does not provide a cache path
+	if (temporary_cache_path) {
+		char buffer[DIRECTORY_MAX_PATH];
+		size_t len = GetTempPathA(DIRECTORY_MAX_PATH, buffer);
+		if (len == 0 || len > DIRECTORY_MAX_PATH) {
+			error_print("Fail to get a temporary path\n");
+			return PROCESS_FAILURE;
+		}
+		std::hash<wstring> hash_object;
+		set_cache_root(stringToWstring(buffer) + L"GCSDokan" + std::to_wstring(hash_object(get_remote_link())));
+		set_cache_type(CACHE_TYPE::disk);
+	}
+
 
 	debug_print(L"verbose mode on\n");
 	debug_print(L"remote path: %ls\n", get_remote_link().c_str());
@@ -231,6 +255,7 @@ static int process_arguments(int argc, char* argv[]) {
 	}
 	return PROCESS_SUCCESS;
 }
+
 
 int main(int argc, char* argv[])
 {
@@ -252,7 +277,13 @@ int main(int argc, char* argv[])
 	auto_auth();
 
 	google::cloud::storage::v1::oauth2::Credentials& credentials = get_credentials();
-	debug_print("Credential email:%s\n", credentials.AccountEmail().c_str());
+	if(credentials.AccountEmail().length()!=0)
+		debug_print("Account:%s\n", credentials.AccountEmail().c_str());
+
+	//Manage the life time of GCSDokan
+	if (!start_deamon()) {
+		return ERROR_ACCESS_DENIED;
+	}
 
 	//Run dokan program
 	result = run_dokan();

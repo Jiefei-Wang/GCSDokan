@@ -16,45 +16,6 @@ using std::wstring;
 using std::vector;
 
 
-#define EXECUTE_COMMAND_FAIL_TO_OPEN_PIPE "Excuting command line program failed!"
-#define EXECUTE_COMMAND_NONZERO_EXIST "Command has non-zero exist status"
-
-std::string execute_command(const char* cmd) {
-    std::array<char, 128> buffer;
-    std::string result;
-    FILE* pipe = _popen(cmd, "r");
-    //std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd, "r"), _pclose);
-    if (!pipe) {
-        _pclose(pipe);
-        throw std::runtime_error(EXECUTE_COMMAND_FAIL_TO_OPEN_PIPE);
-    }
-    while (fgets(buffer.data(), (int)buffer.size(), pipe) != nullptr) {
-        result += buffer.data();
-    }
-    int status = _pclose(pipe);
-    if (status != 0) {
-        throw std::runtime_error(EXECUTE_COMMAND_NONZERO_EXIST);
-    }
-    return result;
-}
-
-
-
-bool is_command_exist(const char* command) {
-    string checkCommand = string("where ")+ command + " 2>&1";
-    try {
-        execute_command(checkCommand.c_str());
-    }
-    catch (const std::exception& e) {
-        if (strcmp(e.what(), EXECUTE_COMMAND_NONZERO_EXIST) == 0)
-            return false;
-        else
-            throw;
-    }
-    return true;
-}
-
-
 wstring to_linux_slash(wstring path) {
     for (size_t i = 0; i < path.size(); ++i) {
         if (path.at(i) == L'\\') {
@@ -96,13 +57,10 @@ string get_tailing_string(string source, size_t offset) {
     }
 }
 string remove_tailing_slash(string path) {
-    return wstringToString(remove_tailing_slash(stringToWstring(path)));
+    return remove_tailing_symbol(path, '/');
 }
 wstring remove_tailing_slash(wstring path) {
-    while (path.length() != 0 && path.at(path.length() - 1) == L'/') {
-        path = path.substr(0, path.length() - 1);
-    }
-    return path;
+    return remove_tailing_symbol(path, L'/');
 }
 
 decomposed_path get_path_info(std::wstring wide_linux_path) {
