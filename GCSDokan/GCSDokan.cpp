@@ -39,7 +39,7 @@ static void show_usage() {
 		"  -r, --refresh <time>     The refresh rate of the virtual files in seconds(default 60s). The changes \n"
 		"                           in the bucket will not be visible until the local information is expired.\n"
 		"  -nb, --noBlock           Running GCSDokan in the background.\n"
-		"  -l, --list               List all mounted bucket"
+		"  -l, --list               List all mounted bucket\n"
 		"  -u, --unmount <path>     Unmount a GCSDokan mount point <path>\n"
 		"  -v, --verbose            Verbose mode.\n"
 		"  -h, --help               Show this help page.\n"
