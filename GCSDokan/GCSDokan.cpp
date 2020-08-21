@@ -34,7 +34,7 @@ static void show_usage() {
 	fprintf(stderr, "GCSDokan.exe - Mount a Google Cloud Storage bucket to a virtual driver or folder.\n"
 		"Usage: GCSDokan remote mountPoint [arguments]\n"
 		"Arguments:\n"
-		"  -c, --credentials <path> Use a service account to authenticate with google.\n"
+		"  -k, --key <path>         Use a service account credentials file to authenticate with google.\n"
 		"  -b, --billing <project>  Set the billing project.\n"
 		"  -r, --refresh <time>     The refresh rate of the virtual files in seconds(default 60s). The changes \n"
 		"                           in the bucket will not be visible until the local information is expired.\n"
@@ -132,7 +132,7 @@ static int process_arguments(int argc, char* argv[]) {
 		}
 		boost::to_lower(command_str);
 		//credentials file
-		if (match_argument(command_str, "-c", "--credentials")) {
+		if (match_argument(command_str, "-k", "--key")) {
 			CHECK_CMD_ARG(command, argc);
 			set_credentials_path(argv[command]);
 			continue;
