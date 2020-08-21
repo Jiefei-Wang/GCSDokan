@@ -253,6 +253,9 @@ static int process_arguments(int argc, char* argv[]) {
 		debug_print(L"Cache is disabled\n");
 		break;
 	}
+	if (get_billing_project().length() != 0) {
+		debug_print(L"Billing project:%s\n", get_billing_project().c_str());
+	}
 	return PROCESS_SUCCESS;
 }
 

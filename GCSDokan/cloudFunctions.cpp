@@ -100,13 +100,26 @@ folder_meta_info gcs_get_folder_meta(std::wstring linux_path) {
 	return dir_meta_info;
 }
 
+
 bool gcs_read_file_internal(std::wstring linux_path, void* buffer,
 	size_t offset,
 	size_t length) {
 	decomposed_path info = get_path_info(linux_path);
 	gcs::Client& client = get_client();
-	gcs::ObjectReadStream read_stream = client.ReadObject(info.bucket, info.path, gcs::ReadRange(offset,offset+length));
-	
+	gcs::ObjectReadStream read_stream;
+	string billing_project = get_billing_project();
+	if (billing_project.length() != 0) {
+		read_stream = client.ReadObject(info.bucket, info.path, 
+			gcs::ReadRange(offset, offset + length), 
+			gcs::UserProject(get_billing_project()));
+	}
+	else {
+		read_stream = client.ReadObject(info.bucket, info.path, 
+			gcs::ReadRange(offset, offset + length));
+	}
+
+
+
 	read_stream.read((char*)buffer, length);
 	if (read_stream.bad()) {
 		error_print(read_stream.status().message().c_str());
