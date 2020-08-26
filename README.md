@@ -7,6 +7,10 @@ This library can mount a Google Cloud Storage bucket to your local file system o
 [gcsfuse]: https://github.com/GoogleCloudPlatform/gcsfuse
 
 ## Dependencies
+### For using the release version
+* Dokan driver and library([download](https://dokan-dev.github.io/))
+
+### For building the code from source
 * Dokan driver and library([download](https://dokan-dev.github.io/))
 * stlcache([download](https://github.com/akashihi/stlcache))
 * Boost filesystem([download](https://www.boost.org/))
