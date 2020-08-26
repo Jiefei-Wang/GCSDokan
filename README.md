@@ -1,4 +1,4 @@
-<p align="center">
+<p align="left">
     <img src="https://img.shields.io/badge/version-1.0.1-brightgreen">
 </p>
 
