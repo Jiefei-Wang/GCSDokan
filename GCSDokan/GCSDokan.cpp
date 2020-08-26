@@ -9,6 +9,8 @@
 #include "utilities.h"
 #include "daemon.h"
 
+#define GCSDOKAN_VERSION "1.0.1"
+
 using std::string;
 using std::wstring;
 
@@ -25,8 +27,6 @@ command + 1 != argc &&															\
 argv[command + 1][0] != '-'
 
 enum class BLOCK_TYPE { block, no_block, force_block };
-
-#define GCSDOKAN_VERSION "1.0.0"
 static BLOCK_TYPE block_status = BLOCK_TYPE::block;
 
 static void show_usage() {

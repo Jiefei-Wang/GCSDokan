@@ -225,7 +225,7 @@ bool exist_path(wstring win_path)
 bool exist_file(wstring win_path)
 {
 	wstring linux_path = to_linux_slash(win_path);
-	if (linux_path == L"/") linux_path = L"";
+	if (linux_path == L"/") return false;
 	wstring linux_full_path = build_path(get_remote_link(), linux_path);
 	update_info(linux_full_path);
 	return exist_file_in_cloud(linux_full_path);

@@ -1,4 +1,7 @@
-# GCSDokan
+<p align="center">
+    <img src="https://img.shields.io/badge/version-1.0.1-brightgreen">
+</p>
+
 This library can mount a Google Cloud Storage bucket to your local file system on Windows. It provides features that are similar to [gcsfuse][gcsfuse]. Users can browse and read the files on cloud as-if the files are on disk. Note that GCSDokan is still under development, if you see any unexpected results, please open an issue. 
 
 [gcsfuse]: https://github.com/GoogleCloudPlatform/gcsfuse
@@ -53,13 +56,15 @@ For other options, please refer to the program help page `GCSDokan -h`.
 
 * Random access will be costly due to the latancy of the network connection. GCSDokan will try its best to identify the random access and avoid the need of creating a local cache.
 
-## future plan
+## Miscellaneous
+* If there exists a file and a folder with the same name in the same directory, a tailing underscore will be added to the file name
 
-* Binary release for x64
+* If you use a [placeholder][placeholder] file to maintain the directory structure in a bucket, the file will be named as ".placeholder" and have the "hidden" attribute.
+
+[placeholder]: https://cloud.google.com/storage/docs/gsutil/addlhelp/HowSubdirectoriesWork
+
+## future plan
 
 * Support the file writting.
 
 * Showing the correct bucket size.
-
-* Handle placeholder file
-

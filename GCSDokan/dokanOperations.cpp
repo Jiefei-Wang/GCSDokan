@@ -136,12 +136,13 @@ cloud_create_file(LPCWSTR file_name, PDOKAN_IO_SECURITY_CONTEXT security_context
 		&generic_desired_access, &attr_and_flags, &creation_disposition);
 	debug_print(L"### CreateFile : %d\n", ((file_private_info*)dokan_file_info->Context)->event_id);
 	debug_print(L"file name : %s\n", file_name);
+	/*
 	if(endsWith(file_name, L"System Volume Information")||
 		endsWith(file_name, L"$RECYCLE.BIN")||
 		endsWith(file_name, L"desktop.ini")) {
 		debug_print(L"auto created file, no such file\n");
 		return STATUS_ACCESS_DENIED;
-	}
+	}*/
 	print_flag(share_access, desired_access, attr_and_flags, creation_disposition);
 
 	if (containFlag(desired_access, GENERIC_WRITE) ||
@@ -153,7 +154,7 @@ cloud_create_file(LPCWSTR file_name, PDOKAN_IO_SECURITY_CONTEXT security_context
 	}
 
 	bool exist_path = true;
-	if (wcslen(file_name)!=1&&exist_file(file_name)) {
+	if (wcslen(file_name)!=1 && exist_file(file_name)) {
 		dokan_file_info->IsDirectory = false;
 		if (create_options & FILE_DIRECTORY_FILE) {
 			debug_print(L"error: file is not a directory\n");
@@ -297,26 +298,24 @@ NTSTATUS DOKAN_CALLBACK cloud_get_file_information(
 	PDOKAN_FILE_INFO dokan_file_info) {
 	debug_print(L"### GetFileInfo : %llu\n", ((file_private_info*)dokan_file_info->Context)->event_id);
 	debug_print(L"file name: %s\n", file_name);
-	if (endsWith(file_name, L"desktop.ini")) {
-		debug_print(L"file not found\n");
-		return ERROR_FILE_NOT_FOUND;
+
+	if (!exist_path(file_name)) {
+		debug_print(L"The path is not found\n");
+		return ERROR_PATH_NOT_FOUND;
 	}
 
-	//fill_dummy_info(handleFileInformation);
-	//handleFileInformation->dwVolumeSerialNumber = 0x19831116;
-	if (dokan_file_info->IsDirectory) {
+	if (!exist_file(file_name)) {
 		handleFileInformation->dwFileAttributes = FILE_ATTRIBUTE_DIRECTORY;
 		handleFileInformation->ftCreationTime = FILETIME{0,0};
 		handleFileInformation->ftLastWriteTime = FILETIME{ 0,0 };
 		handleFileInformation->ftLastAccessTime = FILETIME{ 0,0 };
 	}
 	else {
-		if (!exist_file(file_name)) {
-			debug_print(L"error file is not a folder\n");
-			return ERROR_FILE_NOT_FOUND;
-		}
 		file_meta_info meta = get_file_meta(file_name);
 		handleFileInformation->dwFileAttributes = FILE_ATTRIBUTE_READONLY;
+		if (meta.hidden) {
+			handleFileInformation->dwFileAttributes = handleFileInformation->dwFileAttributes | FILE_ATTRIBUTE_HIDDEN;
+		}
 		unsigned long long size = meta.size;
 		LlongToDwLowHigh(size, handleFileInformation->nFileSizeLow, handleFileInformation->nFileSizeHigh);
 		handleFileInformation->ftCreationTime = time_point_to_file_time(meta.time_created);
@@ -354,6 +353,9 @@ cloud_find_files(LPCWSTR file_name,
 		unsigned long long size = i.second.size;
 		LlongToDwLowHigh(size, findData.nFileSizeLow, findData.nFileSizeHigh);
 		findData.dwFileAttributes = FILE_ATTRIBUTE_READONLY;
+		if (i.second.hidden) {
+			findData.dwFileAttributes = findData.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN;
+		}
 		findData.ftCreationTime = time_point_to_file_time(i.second.time_created);
 		findData.ftLastWriteTime = time_point_to_file_time(i.second.time_updated);
 		findData.ftLastAccessTime = time_point_to_file_time(i.second.time_updated);

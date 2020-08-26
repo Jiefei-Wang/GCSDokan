@@ -13,6 +13,7 @@ struct file_meta_info {
     std::chrono::system_clock::time_point time_created;
     std::chrono::system_clock::time_point time_updated;
     std::chrono::system_clock::time_point time_accessed;
+    bool hidden = false;
 };
 
 

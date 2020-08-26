@@ -86,8 +86,25 @@ folder_meta_info gcs_get_folder_meta(std::wstring linux_path) {
 			}
 		}
 	}
-	//Solve name conflicting
+	// Solve name conflicting
+	// 1. Place holder name conflicting
+	// 2. file and folder name conflicting
 	for (auto i : file_meta_vec) {
+		//place holder
+		if (i.local_name == L"") {
+			i.hidden = true;
+			i.local_name = L".placeholder";
+			while (std::find_if(
+				file_meta_vec.begin(),
+				file_meta_vec.end(),
+				[&](file_meta_info const& item) {
+				return item.local_name == i.local_name; 
+			}) != file_meta_vec.end()
+				) {
+				i.local_name = i.local_name + L"_";
+			}
+		}
+		// Folder names
 		while (std::find(
 			folder_names.begin(),
 			folder_names.end(),
@@ -95,6 +112,8 @@ folder_meta_info gcs_get_folder_meta(std::wstring linux_path) {
 			) {
 			i.local_name = i.local_name + L"_";
 		}
+		
+		//Insert the final result to the meta info
 		dir_meta_info.file_meta_vector.insert(std::pair<std::wstring, file_meta_info>(i.local_name,i));
 	}
 	return dir_meta_info;
