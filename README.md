@@ -2,7 +2,7 @@
     <img src="https://img.shields.io/badge/version-1.0.1-brightgreen">
 </p>
 
-This library can mount a Google Cloud Storage bucket to your local file system on Windows. It provides features that are similar to [gcsfuse][gcsfuse]. Users can browse and read the files on cloud as-if the files are on disk. Note that GCSDokan is still under development, if you see any unexpected results, please open an issue. 
+This library can mount a Google Cloud Storage bucket to your local file system on Windows. It provides features that are similar to [gcsfuse][gcsfuse]. Users can browse and read the files on cloud as-if the files are on disk. Note that GCSDokan is still under development, please feel free to open an issue if you see any unexpected results. 
 
 [gcsfuse]: https://github.com/GoogleCloudPlatform/gcsfuse
 
