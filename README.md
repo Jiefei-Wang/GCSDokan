@@ -12,7 +12,7 @@ You must install the following dependency before using the binary release
 
 * Dokan driver and library([download](https://dokan-dev.github.io/))
 
-Once you have Dokan installed, you can download the binary release of `GCSDokan` to a directory and run it from a terminal. You can make the program findable in a terminal by adding the path to `GCSDokan` to the environment variable `PATH`.
+Once you have Dokan installed, you can simply download the binary release of `GCSDokan` to a directory and run it from a terminal. The program can be made available to all terminal by adding the path to the `GCSDokan` to the environment variable `PATH`.
 
 ### For building the program from source
 You need the following dependencies to build the program:
