@@ -7,11 +7,11 @@ This library is a command-line program and can mount a Google Cloud Storage buck
 [gcsfuse]: https://github.com/GoogleCloudPlatform/gcsfuse
 
 ## Dependencies & Installation
-### For installing the binary version(release version)
+### Installing the binary version(release version)
 You must install Dokan driver and library([download](https://dokan-dev.github.io/)) for using the binary release. After you have downloaded the program, Simply putting the path to the program to your environment variable `PATH`. Then you can check and run the program by typing `GCSDokan` in your terminal. If the Dokan driver has been properly installed, you should be able to see the help page of the program.
 
 
-### For building the program from source
+### Building the program from source
 You need the following dependencies to build the program:
 
 * Dokan driver and library([download](https://dokan-dev.github.io/))
@@ -20,15 +20,14 @@ You need the following dependencies to build the program:
 * Google Cloud CPP (version > 1.16.0)([download](https://github.com/googleapis/google-cloud-cpp))
 * Visual Studio
 
-If you are using [vcpkg](vcpkg) to manage your libraries. The boost filesystem and Google Cloud CPP can be automatically linked by vcpkg when compiling GCSDokan. Note that the you must install the HEAD version of Google Cloud CPP in vcpkg since the release version does not fulfull the version requirement of GCsDokan.
+It is recommanded to compile the program using Visual Studio 2019 for the program has been written and tested on this platform. If you are using [vcpkg](vcpkg) to manage your libraries. The boost filesystem and Google Cloud CPP can be automatically linked by vcpkg when compiling GCSDokan. As of August 2020 you must install the HEAD version of Google Cloud CPP in vcpkg since the release version does not fulfull the version requirement of GCsDokan.
 
-For building the program, the library stlcache and Dokan can be found via the environment variable `stlcache_root` and `dokan_root` respectively. For example, these environments on my machine are `C:\dev\library\include` and `C:\Program Files\Dokan\DokanLibrary-1.4.0`. If you do not use vcpkg, you have to manually add the pathes of the boost library and Google Cloud CPP into the project.
+For building the program, the library stlcache and Dokan can be found via the environment variable `stlcache_root` and `dokan_root` respectively. For example, these environments on my machine are `C:\dev\library\include` and `C:\Program Files\Dokan\DokanLibrary-1.4.0`. If you do not use vcpkg, you have to manually add the pathes of the boost library and Google Cloud CPP to the project.
 
 [vcpkg]: https://github.com/microsoft/vcpkg
 
 ## Authentication
-The program use a service account to authenticate with google. The credentials file can be found from either program arguments `-c <path>` or environment variable `GOOGLE_APPLICATION_CREDENTIALS`, please refer to [Google Authentication][] for how to create and use a service account.
-
+The program use a service account to authenticate with google. The credentials file can be found from either the program argument `--key <path>` or the environment variable `GOOGLE_APPLICATION_CREDENTIALS`. Please refer to [Google Authentication][] for how to create and use a service account.
 
 
 [Google Authentication]: https://cloud.google.com/docs/authentication/production
@@ -46,11 +45,11 @@ Alternatively, you can use the URI of the bucket
 ```
 GCSDokan gs://genomics-public-data Z
 ```
-The `remote_path` does not have to be a bucket, you can mount the subdirectory `clinvar` of the bucket `genomics-public-data` as follows
+The `remote_path` does not have to be a bucket, you can mount the subdirectory `clinvar` of the bucket `genomics-public-data` as well
 ```
 GCSDokan genomics-public-data/clinvar Z
 ```
-similarly, you can mount a bucket to a folder under an existing disk given that the disk type supports it.
+similarly, you can mount a bucket to a folder under an existing disk given that the disk supports it.
 ```
 GCSDokan genomics-public-data Z:\my_folder
 ```
