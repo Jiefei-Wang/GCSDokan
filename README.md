@@ -65,7 +65,7 @@ For other options, please refer to the program help page `GCSDokan -h`.
 ## Miscellaneous
 * If there exists a file and a folder with the same name in the same directory, a tailing underscore will be added to the file name
 
-* If you use a [placeholder][placeholder] file to maintain the directory structure in a bucket, the file will be named as ".placeholder" and have the "hidden" attribute.
+* If you use a [placeholder][placeholder] file to maintain the directory structure in a bucket, the file will be named as ".placeholder" and have the 'hidden' attribute.
 
 [placeholder]: https://cloud.google.com/storage/docs/gsutil/addlhelp/HowSubdirectoriesWork
 
