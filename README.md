@@ -2,17 +2,14 @@
     <img src="https://img.shields.io/badge/version-1.0.1-brightgreen">
 </p>
 
-This library can mount a Google Cloud Storage bucket to your local file system on Windows. It provides features that are similar to [gcsfuse][gcsfuse]. Users can browse and read the files on cloud as-if the files are on disk. Note that GCSDokan is still under development, please feel free to open an issue if you see any unexpected results. 
+This library is a command-line program and can mount a Google Cloud Storage bucket to your local file system on Windows. It provides features that are similar to [gcsfuse][gcsfuse]. Users can browse and read the files on cloud as-if the files are on disk. Note that GCSDokan is still under development, please feel free to open an issue if you see any unexpected results. 
 
 [gcsfuse]: https://github.com/GoogleCloudPlatform/gcsfuse
 
-## Dependencies & installation
-### For installing the binary version
-You must install the following dependency before using the binary release
+## Dependencies & Installation
+### For installing the binary version(release version)
+You must install Dokan driver and library([download](https://dokan-dev.github.io/)) for using the binary release. After you have downloaded the program, Simply putting the path to the program to your environment variable `PATH`. Then you can check and run the program by typing `GCSDokan` in your terminal. If the Dokan driver has been properly installed, you should be able to see the help page of the program.
 
-* Dokan driver and library([download](https://dokan-dev.github.io/))
-
-Once you have Dokan installed, you can simply download the binary release of `GCSDokan` to a directory and run it from a terminal. The program can be made available to all terminal by adding `GCSDokan` to the environment variable `PATH`.
 
 ### For building the program from source
 You need the following dependencies to build the program:
