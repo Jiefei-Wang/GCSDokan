@@ -8,22 +8,27 @@ This library is a command-line program and can mount a Google Cloud Storage buck
 
 ## Dependencies & Installation
 ### Installing the binary version(release version)
-You must install Dokan driver and library([download](https://dokan-dev.github.io/)) for using the binary release. After you have downloaded the program, Simply putting the path to the program to your environment variable `PATH`. Then you can check and run the program by typing `GCSDokan` in your terminal. If the Dokan driver has been properly installed, you should be able to see the help page of the program.
+You must install [Dokan driver and library][Dokan] for using the binary release. After you have downloaded the program, Simply putting the path to the program to your environment variable `PATH`. Then you can check and run the program by typing `GCSDokan` in your terminal. If the Dokan driver has been properly installed, you should be able to see the help page of the program.
 
 
 ### Building the program from source
 You need the following dependencies to build the program:
 
-* Dokan driver and library([download](https://dokan-dev.github.io/))
-* stlcache([download](https://github.com/akashihi/stlcache))
-* Boost filesystem([download](https://www.boost.org/))
-* Google Cloud CPP (version > 1.16.0)([download](https://github.com/googleapis/google-cloud-cpp))
+* [Dokan driver and library][Dokan]
+* [stlcache][stlcache]
+* [Boost filesystem][Boost]
+* [Google Cloud CPP][Google Cloud CPP] (version > 1.16.0)
 * Visual Studio
 
 It is recommanded to compile the program using Visual Studio 2019 for the program has been written and tested on this platform. If you are using [vcpkg](vcpkg) to manage your libraries. The boost filesystem and Google Cloud CPP can be automatically linked by vcpkg when compiling GCSDokan. As of August 2020 you must install the HEAD version of Google Cloud CPP in vcpkg since the release version does not fulfull the version requirement of GCsDokan.
 
 For building the program, the library stlcache and Dokan can be found via the environment variable `stlcache_root` and `dokan_root` respectively. For example, these environments on my machine are `C:\dev\library\include` and `C:\Program Files\Dokan\DokanLibrary-1.4.0`. If you do not use vcpkg, you have to manually add the pathes of the boost library and Google Cloud CPP to the project.
 
+
+[Dokan]: https://dokan-dev.github.io/
+[stlcache]: https://github.com/akashihi/stlcache
+[Boost]: https://www.boost.org/
+[Google Cloud CPP]: https://github.com/googleapis/google-cloud-cpp
 [vcpkg]: https://github.com/microsoft/vcpkg
 
 ## Authentication
