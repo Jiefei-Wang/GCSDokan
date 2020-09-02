@@ -8,8 +8,9 @@ This library is a command-line program and can mount a Google Cloud Storage buck
 
 ## Dependencies & Installation
 ### Installing the binary version(release version)
-You must install [Dokan driver and library][Dokan] for using the binary release. After you have downloaded the program, Simply putting the path to the program to your environment variable `PATH`. Then you can check and run the program by typing `GCSDokan` in your terminal. If the Dokan driver has been properly installed, you should be able to see the help page of the program.
+You must install [Dokan driver and library][Dokan] before using the program. The release version of GCSDokan can be found [here][release]. After you have downloaded the program, Simply putting the path to the program to your environment variable `PATH`. Then you can check and run the program by typing `GCSDokan` in your terminal. If the Dokan driver has been properly installed, you should be able to see the help page of the program.
 
+[release]: https://github.com/Jiefei-Wang/GCSDokan/releases
 
 ### Building the program from source
 You need the following dependencies to build the program:
