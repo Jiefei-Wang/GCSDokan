@@ -56,7 +56,7 @@ static void show_usage() {
 		"\n"
 		"Examples:\n"
 		"  GCSDokan genomics-public-data Z\n"
-		"  GCSDokan gs:://genomics-public-data/clinvar Z -v -mc 200\n"
+		"  GCSDokan gs://genomics-public-data/clinvar Z -v -mc 200\n"
 		"\n"
 		"Unmount the drive with \"GCSDokan -u MountPoint\" or Ctrl + C if the program is running in the foreground.\n");
 	// clang-format on
